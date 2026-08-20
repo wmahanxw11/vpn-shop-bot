@@ -56,8 +56,8 @@ class Plan(db.Model):
     __tablename__ = 'plans'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    volume = db.Column(db.String(50), nullable=False)  # مثلاً 10GB, 50GB, 100GB
-    duration = db.Column(db.String(50), nullable=False)  # مثلاً 1 ماهه, 3 ماهه
+    volume = db.Column(db.String(50), nullable=False)
+    duration = db.Column(db.String(50), nullable=False)
     price = db.Column(db.Float, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -363,26 +363,31 @@ def echo_all(message):
     )
 
 # ===== روت‌های پنل مدیریت =====
+
+# تابع inject_theme برای اعمال تم به همه صفحات
+@app.context_processor
+def inject_theme():
+    return {
+        'theme': get_theme(),
+        'primary_color': get_primary_color(),
+        'secondary_color': get_secondary_color(),
+        'currency': get_setting('currency', 'تومان'),
+        'bot_name': get_setting('bot_name', 'فروشگاه VPN')
+    }
+
 @app.route('/')
 def index():
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    return render_template('login.html', theme=theme, primary=primary, secondary=secondary)
+    return render_template('login.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    
     if request.method == 'POST':
         password = request.form.get('password')
         if password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
             session['logged_in'] = True
             return redirect(url_for('admin_dashboard'))
-        return render_template('login.html', error='رمز اشتباه است!', theme=theme, primary=primary, secondary=secondary)
-    return render_template('login.html', theme=theme, primary=primary, secondary=secondary)
+        return render_template('login.html', error='رمز اشتباه است!')
+    return render_template('login.html')
 
 @app.route('/admin')
 def admin_dashboard():
@@ -394,12 +399,8 @@ def admin_dashboard():
         links_count = SubscriptionLink.query.count()
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
-        price = 0  # برای نمایش در هدر
         currency = get_setting('currency', 'تومان')
         bot_name = get_setting('bot_name', 'فروشگاه VPN')
-        theme = get_theme()
-        primary = get_primary_color()
-        secondary = get_secondary_color()
         plans = Plan.query.all()
     
     return render_template(
@@ -409,12 +410,6 @@ def admin_dashboard():
         used_links=used_links,
         unused_links=links_count - used_links,
         total_income=total_income,
-        price=price,
-        currency=currency,
-        bot_name=bot_name,
-        theme=theme,
-        primary=primary,
-        secondary=secondary,
         plans=plans
     )
 
@@ -423,10 +418,7 @@ def admin_users():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     users = User.query.all()
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    return render_template('users.html', users=users, theme=theme, primary=primary, secondary=secondary)
+    return render_template('users.html', users=users)
 
 @app.route('/admin/links')
 def admin_links():
@@ -434,10 +426,7 @@ def admin_links():
         return redirect(url_for('login'))
     links = SubscriptionLink.query.order_by(SubscriptionLink.created_at.desc()).all()
     plans = Plan.query.all()
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    return render_template('links.html', links=links, plans=plans, theme=theme, primary=primary, secondary=secondary)
+    return render_template('links.html', links=links, plans=plans)
 
 @app.route('/admin/add_link', methods=['GET', 'POST'])
 def admin_add_link():
@@ -445,9 +434,6 @@ def admin_add_link():
         return redirect(url_for('login'))
     
     plans = Plan.query.all()
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
     
     if request.method == 'POST':
         link_url = request.form.get('link_url')
@@ -461,7 +447,7 @@ def admin_add_link():
             db.session.commit()
             return redirect(url_for('admin_links'))
     
-    return render_template('add_link.html', plans=plans, theme=theme, primary=primary, secondary=secondary)
+    return render_template('add_link.html', plans=plans)
 
 @app.route('/admin/transactions')
 def admin_transactions():
@@ -469,10 +455,7 @@ def admin_transactions():
         return redirect(url_for('login'))
     transactions = Transaction.query.order_by(Transaction.created_at.desc()).all()
     plans = Plan.query.all()
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    return render_template('transactions.html', transactions=transactions, plans=plans, theme=theme, primary=primary, secondary=secondary)
+    return render_template('transactions.html', transactions=transactions, plans=plans)
 
 @app.route('/admin/charge', methods=['POST'])
 def admin_charge():
@@ -503,10 +486,6 @@ def admin_settings():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    
     if request.method == 'POST':
         currency = request.form.get('currency')
         bot_name = request.form.get('bot_name')
@@ -533,11 +512,6 @@ def admin_settings():
     
     return render_template(
         'settings.html',
-        currency=currency,
-        bot_name=bot_name,
-        theme=theme,
-        primary=primary,
-        secondary=secondary,
         saved=request.args.get('saved')
     )
 
@@ -545,11 +519,6 @@ def admin_settings():
 def admin_plans():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    currency = get_setting('currency', 'تومان')
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -563,17 +532,6 @@ def admin_plans():
             if name and volume and duration and price > 0:
                 new_plan = Plan(name=name, volume=volume, duration=duration, price=price)
                 db.session.add(new_plan)
-                db.session.commit()
-        
-        elif action == 'edit':
-            plan_id = int(request.form.get('plan_id'))
-            plan = Plan.query.get(plan_id)
-            if plan:
-                plan.name = request.form.get('name')
-                plan.volume = request.form.get('volume')
-                plan.duration = request.form.get('duration')
-                plan.price = float(request.form.get('price', 0))
-                plan.is_active = True if request.form.get('is_active') else False
                 db.session.commit()
         
         elif action == 'toggle':
@@ -593,24 +551,14 @@ def admin_plans():
         return redirect(url_for('admin_plans'))
     
     plans = Plan.query.all()
-    return render_template(
-        'plans.html',
-        plans=plans,
-        currency=currency,
-        theme=theme,
-        primary=primary,
-        secondary=secondary
-    )
+    return render_template('plans.html', plans=plans)
+
 @app.route('/admin/plans/edit/<int:plan_id>', methods=['GET', 'POST'])
 def admin_plan_edit(plan_id):
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
     plan = Plan.query.get_or_404(plan_id)
-    theme = get_theme()
-    primary = get_primary_color()
-    secondary = get_secondary_color()
-    currency = get_setting('currency', 'تومان')
     
     if request.method == 'POST':
         plan.name = request.form.get('name')
@@ -621,33 +569,18 @@ def admin_plan_edit(plan_id):
         db.session.commit()
         return redirect(url_for('admin_plans'))
     
-    return render_template(
-        'plan_edit.html',
-        plan=plan,
-        currency=currency,
-        theme=theme,
-        primary=primary,
-        secondary=secondary
-    )
-@app.context_processor
-def inject_theme():
-    """این تابع متغیرهای تم رو به همه صفحات اضافه می‌کنه"""
-    return {
-        'theme': get_theme(),
-        'primary_color': get_primary_color(),
-        'secondary_color': get_secondary_color(),
-        'currency': get_setting('currency', 'تومان'),
-        'bot_name': get_setting('bot_name', 'فروشگاه VPN')
-    }
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        password = request.form.get('password')
-        if password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
-            session['logged_in'] = True
-            return redirect(url_for('admin_dashboard'))
-        return render_template('login.html', error='رمز اشتباه است!')
-    return render_template('login.html')
+    return render_template('plan_edit.html', plan=plan)
+
+@app.route('/admin/plans/delete/<int:plan_id>', methods=['POST'])
+def admin_plan_delete(plan_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    plan = Plan.query.get_or_404(plan_id)
+    db.session.delete(plan)
+    db.session.commit()
+    return redirect(url_for('admin_plans'))
+
 @app.route('/admin/logout')
 def logout():
     session.pop('logged_in', None)
