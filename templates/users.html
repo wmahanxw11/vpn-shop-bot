@@ -1,64 +1,618 @@
-@app.route('/admin/deduct', methods=['POST'])
-def admin_deduct():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    
-    telegram_id = request.form.get('telegram_id')
-    amount = float(request.form.get('amount', 0))
-    
-    if telegram_id and amount > 0:
-        with app.app_context():
-            user = get_user(int(telegram_id))
-            if user.balance >= amount:
-                user.balance -= amount
-                db.session.commit()
-                add_transaction(int(telegram_id), -amount, "کسر موجودی توسط ادمین")
-                
-                try:
-                    bot.send_message(
-                        int(telegram_id),
-                        f"🔻 {amount} {get_setting('currency', 'تومان')} از کیف پول شما کسر شد!\n"
-                        f"💰 موجودی جدید: {user.balance} {get_setting('currency', 'تومان')}"
-                    )
-                except:
-                    pass
-            else:
-                return "موجودی کافی نیست!", 400
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت کاربران</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f6fa;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .back:hover {
+            color: #2176ae;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header h2 {
+            color: #2c3e50;
+            font-size: 22px;
+        }
+        .header .stats {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .header .stats span {
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .search-box input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .search-box button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .search-box .btn-search {
+            background: #3498db;
+            color: white;
+        }
+        .search-box .btn-search:hover {
+            background: #2980b9;
+        }
+        .search-box .btn-clear {
+            background: #95a5a6;
+            color: white;
+        }
+        .search-box .btn-clear:hover {
+            background: #7f8c8d;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+            padding: 14px 12px;
+            text-align: right;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .balance-amount {
+            font-weight: 700;
+            font-size: 16px;
+            display: inline-block;
+            min-width: 60px;
+        }
+        .balance-positive {
+            color: #27ae60;
+        }
+        .balance-negative {
+            color: #e74c3c;
+        }
+        .balance-zero {
+            color: #95a5a6;
+        }
+        .user-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .user-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .user-badge.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .user-id {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .user-username {
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+        .user-link {
+            font-size: 11px;
+            color: #3498db;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 2px;
+        }
+        .user-link:hover {
+            text-decoration: underline;
+        }
+        .balance-form {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .balance-form .row {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .balance-form input[type="number"] {
+            width: 70px;
+            padding: 5px 8px;
+            border: 2px solid #e8ecf1;
+            border-radius: 5px;
+            font-size: 13px;
+            transition: border-color 0.3s;
+        }
+        .balance-form input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .balance-form input[type="number"].small {
+            width: 60px;
+        }
+        .btn {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .btn-charge {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-charge:hover {
+            background: #219a52;
+        }
+        .btn-deduct {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-deduct:hover {
+            background: #c0392b;
+        }
+        .btn-set {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-set:hover {
+            background: #e08e0b;
+        }
+        .btn-reset {
+            background: #e67e22;
+            color: white;
+        }
+        .btn-reset:hover {
+            background: #d35400;
+        }
+        .btn-delete-user {
+            background: #c0392b;
+            color: white;
+        }
+        .btn-delete-user:hover {
+            background: #a93226;
+        }
+        .quick-actions {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+            margin-top: 3px;
+        }
+        .quick-actions button {
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: #f8f9fa;
+            cursor: pointer;
+            font-size: 10px;
+            transition: all 0.2s;
+        }
+        .quick-actions button:hover {
+            background: #e8ecf1;
+        }
+        .quick-actions button.positive {
+            color: #27ae60;
+            border-color: #27ae60;
+        }
+        .quick-actions button.negative {
+            color: #e74c3c;
+            border-color: #e74c3c;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #95a5a6;
+        }
+        .empty-state .icon {
+            font-size: 64px;
+            display: block;
+            margin-bottom: 15px;
+        }
+        .empty-state h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .pagination button:hover {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .pagination button.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .badge-count {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 11px;
+            margin-left: 5px;
+        }
+        @media (max-width: 768px) {
+            table {
+                font-size: 12px;
+                min-width: 700px;
+            }
+            th, td {
+                padding: 8px 6px;
+            }
+            .balance-form input[type="number"] {
+                width: 55px;
+                font-size: 11px;
+            }
+            .btn {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .search-box {
+                flex-direction: column;
+            }
+            .search-box input {
+                min-width: 100%;
+            }
+        }
+        @media (max-width: 480px) {
+            .balance-form .row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .balance-form input[type="number"] {
+                width: 100%;
+            }
+            .quick-actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin" class="back">← بازگشت به داشبورد</a>
         
-        return redirect(url_for('admin_users'))
-    return "خطا", 400
-
-@app.route('/admin/set_balance', methods=['POST'])
-def admin_set_balance():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
+        <div class="header">
+            <div>
+                <h2>👥 مدیریت کاربران</h2>
+                <div style="font-size: 13px; color: #95a5a6; margin-top: 4px;">
+                    مدیریت موجودی و اطلاعات کاربران
+                </div>
+            </div>
+            <div class="stats">
+                <span>👤 {{ users|length }}</span> کاربر
+                <span style="margin-right: 15px;">
+                    💰 کل موجودی: 
+                    <span style="font-weight:700; color:#27ae60;">
+                        {{ users|sum(attribute='balance')|round(0) }}
+                    </span> {{ currency }}
+                </span>
+            </div>
+        </div>
+        
+        <!-- جستجو -->
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 جستجوی کاربر با آیدی یا یوزرنیم..." onkeyup="filterUsers()">
+            <button class="btn-search" onclick="filterUsers()">🔍 جستجو</button>
+            <button class="btn-clear" onclick="clearSearch()">🗑️ پاک کردن</button>
+            <button class="btn-clear" onclick="resetFilters()" style="background:#e74c3c; color:white;">🔄 نمایش همه</button>
+        </div>
+        
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>آیدی تلگرام</th>
+                        <th>یوزرنیم</th>
+                        <th>موجودی ({{ currency }})</th>
+                        <th>تاریخ ثبت‌نام</th>
+                        <th style="min-width:300px;">عملیات</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTable">
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <div class="user-id">{{ user.telegram_id }}</div>
+                            <a href="tg://user?id={{ user.telegram_id }}" target="_blank" class="user-link">
+                                📱 باز کردن در تلگرام
+                            </a>
+                        </td>
+                        <td>
+                            <div class="user-username">@{{ user.username or 'ندارد' }}</div>
+                            <span class="user-badge active">فعال</span>
+                        </td>
+                        <td>
+                            <span class="balance-amount 
+                                {% if user.balance > 0 %}balance-positive
+                                {% elif user.balance < 0 %}balance-negative
+                                {% else %}balance-zero{% endif %}">
+                                {{ user.balance }}
+                            </span>
+                        </td>
+                        <td style="font-size: 12px; white-space: nowrap;">
+                            {{ user.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td>
+                            <div class="balance-form">
+                                <!-- شارژ -->
+                                <div class="row">
+                                    <form method="POST" action="/admin/charge" style="display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap;" 
+                                          onsubmit="return confirm('💰 آیا از شارژ موجودی کاربر مطمئن هستید؟')">
+                                        <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+                                        <input type="number" name="amount" placeholder="مبلغ" required min="1" step="1000">
+                                        <button class="btn btn-charge" type="submit">💰 شارژ</button>
+                                    </form>
+                                    
+                                    <!-- کم کردن -->
+                                    <form method="POST" action="/admin/deduct" style="display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap;" 
+                                          onsubmit="return confirm('⚠️ آیا از کم کردن موجودی کاربر مطمئن هستید؟')">
+                                        <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+                                        <input type="number" name="amount" placeholder="مبلغ" required min="1" step="1000">
+                                        <button class="btn btn-deduct" type="submit">🔻 کم کردن</button>
+                                    </form>
+                                </div>
+                                
+                                <!-- تنظیم دقیق -->
+                                <div class="row">
+                                    <form method="POST" action="/admin/set_balance" style="display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap;" 
+                                          onsubmit="return confirm('⚠️ آیا از تنظیم موجودی کاربر به مقدار وارد شده مطمئن هستید؟')">
+                                        <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+                                        <input type="number" name="amount" placeholder="مقدار دقیق" required step="1000">
+                                        <button class="btn btn-set" type="submit">⚡ تنظیم</button>
+                                    </form>
+                                    
+                                    <!-- ریست به صفر -->
+                                    <form method="POST" action="/admin/set_balance" style="display:inline;" 
+                                          onsubmit="return confirm('⚠️ آیا از ریست موجودی کاربر به صفر مطمئن هستید؟')">
+                                        <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+                                        <input type="hidden" name="amount" value="0">
+                                        <button class="btn btn-reset" type="submit">🔄 ریست</button>
+                                    </form>
+                                </div>
+                                
+                                <!-- دکمه‌های سریع -->
+                                <div class="quick-actions">
+                                    <button class="positive" onclick="setAmount(this, 10000)">+10K</button>
+                                    <button class="positive" onclick="setAmount(this, 50000)">+50K</button>
+                                    <button class="positive" onclick="setAmount(this, 100000)">+100K</button>
+                                    <button class="positive" onclick="setAmount(this, 200000)">+200K</button>
+                                    <button class="positive" onclick="setAmount(this, 500000)">+500K</button>
+                                    <button class="negative" onclick="setAmount(this, -10000)">-10K</button>
+                                    <button class="negative" onclick="setAmount(this, -50000)">-50K</button>
+                                    <button class="negative" onclick="setAmount(this, -100000)">-100K</button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if not users %}
+        <div class="empty-state">
+            <span class="icon">📭</span>
+            <h3>هیچ کاربری ثبت‌نام نکرده است!</h3>
+            <p>اولین کاربر وقتی ربات را استارت بزند، ثبت‌نام می‌شود.</p>
+        </div>
+        {% endif %}
+    </div>
     
-    telegram_id = request.form.get('telegram_id')
-    amount = float(request.form.get('amount', 0))
-    
-    if telegram_id and amount >= 0:
-        with app.app_context():
-            user = get_user(int(telegram_id))
-            old_balance = user.balance
-            user.balance = amount
-            db.session.commit()
+    <script>
+        // ===== فیلتر جستجو =====
+        function filterUsers() {
+            const input = document.getElementById('searchInput');
+            const filter = input.value.toLowerCase().trim();
+            const table = document.getElementById('usersTable');
+            const rows = table.getElementsByTagName('tr');
+            let visibleCount = 0;
             
-            diff = amount - old_balance
-            if diff != 0:
-                add_transaction(
-                    int(telegram_id), 
-                    diff, 
-                    f"تنظیم موجودی توسط ادمین (از {old_balance} به {amount})"
-                )
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                let found = false;
                 
-                try:
-                    bot.send_message(
-                        int(telegram_id),
-                        f"⚡ موجودی کیف پول شما توسط ادمین تنظیم شد!\n"
-                        f"💰 موجودی جدید: {amount} {get_setting('currency', 'تومان')}"
-                    )
-                except:
-                    pass
+                // جستجو در همه ستون‌ها
+                for (let j = 0; j < cells.length; j++) {
+                    const text = cells[j].textContent.toLowerCase();
+                    if (text.indexOf(filter) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (filter === '') {
+                    rows[i].style.display = '';
+                    visibleCount++;
+                } else if (found) {
+                    rows[i].style.display = '';
+                    visibleCount++;
+                } else {
+                    rows[i].style.display = 'none';
+                }
+            }
+            
+            // به‌روزرسانی آمار
+            updateStats(visibleCount);
+        }
         
-        return redirect(url_for('admin_users'))
-    return "خطا", 400
+        // ===== پاک کردن جستجو =====
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterUsers();
+        }
+        
+        // ===== ریست همه فیلترها =====
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            const rows = document.getElementById('usersTable').getElementsByTagName('tr');
+            for (let i = 0; i < rows.length; i++) {
+                rows[i].style.display = '';
+            }
+            updateStats(rows.length);
+        }
+        
+        // ===== به‌روزرسانی آمار =====
+        function updateStats(count) {
+            const stats = document.querySelector('.stats');
+            if (stats) {
+                const totalUsers = document.querySelectorAll('#usersTable tr').length;
+                if (count !== totalUsers) {
+                    stats.innerHTML = `👤 ${count} کاربر (از ${totalUsers}) <span style="margin-right:15px;">💰 کل موجودی: <span style="font-weight:700; color:#27ae60;">{{ users|sum(attribute='balance')|round(0) }}</span> {{ currency }}</span>`;
+                } else {
+                    stats.innerHTML = `👤 ${totalUsers} کاربر <span style="margin-right:15px;">💰 کل موجودی: <span style="font-weight:700; color:#27ae60;">{{ users|sum(attribute='balance')|round(0) }}</span> {{ currency }}</span>`;
+                }
+            }
+        }
+        
+        // ===== تنظیم سریع مبلغ =====
+        function setAmount(btn, value) {
+            // پیدا کردن فرم مربوطه
+            const form = btn.closest('.balance-form');
+            if (!form) return;
+            
+            // پیدا کردن اولین input number در فرم
+            const inputs = form.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                // اگر input داخل فرم شارژ یا کم کردن است
+                const parentForm = input.closest('form');
+                if (parentForm) {
+                    const action = parentForm.action.split('/').pop();
+                    if (action === 'charge' || action === 'deduct') {
+                        input.value = Math.abs(value);
+                    } else if (action === 'set_balance') {
+                        input.value = value;
+                    }
+                }
+            });
+        }
+        
+        // ===== جستجوی خودکار با Enter =====
+        document.getElementById('searchInput').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                filterUsers();
+            }
+        });
+        
+        // ===== نمایش تعداد نتایج =====
+        document.addEventListener('DOMContentLoaded', function() {
+            const totalUsers = document.querySelectorAll('#usersTable tr').length;
+            const stats = document.querySelector('.stats');
+            if (stats) {
+                stats.innerHTML = `👤 ${totalUsers} کاربر <span style="margin-right:15px;">💰 کل موجودی: <span style="font-weight:700; color:#27ae60;">{{ users|sum(attribute='balance')|round(0) }}</span> {{ currency }}</span>`;
+            }
+        });
+    </script>
+</body>
+</html>
