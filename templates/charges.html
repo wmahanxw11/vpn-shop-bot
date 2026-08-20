@@ -71,11 +71,11 @@
             background: #f39c12;
             color: white;
         }
-        .badge-paid {
+        .badge-approved {
             background: #27ae60;
             color: white;
         }
-        .badge-cancelled {
+        .badge-rejected {
             background: #e74c3c;
             color: white;
         }
@@ -125,6 +125,9 @@
             color: #2c3e50;
             margin-bottom: 10px;
         }
+        .status-pending { color: #f39c12; }
+        .status-approved { color: #27ae60; }
+        .status-rejected { color: #e74c3c; }
         @media (max-width: 600px) {
             table {
                 font-size: 12px;
@@ -143,7 +146,9 @@
             <h2>📋 مدیریت درخواست‌های شارژ</h2>
             <div class="stats">
                 کل: <span>{{ charges|length }}</span> | 
-                در انتظار: <span style="color:#f39c12;">{{ charges|selectattr('status', 'equalto', 'pending')|list|length }}</span>
+                در انتظار: <span style="color:#f39c12;">{{ charges|selectattr('status', 'equalto', 'pending')|list|length }}</span> |
+                تایید شده: <span style="color:#27ae60;">{{ charges|selectattr('status', 'equalto', 'approved')|list|length }}</span> |
+                رد شده: <span style="color:#e74c3c;">{{ charges|selectattr('status', 'equalto', 'rejected')|list|length }}</span>
             </div>
         </div>
         
@@ -174,25 +179,27 @@
                     <td>
                         <span class="badge badge-{{ charge.status }}">
                             {% if charge.status == 'pending' %}⏳ در انتظار
-                            {% elif charge.status == 'paid' %}✅ پرداخت شده
-                            {% else %}❌ لغو شده{% endif %}
+                            {% elif charge.status == 'approved' %}✅ تایید شده
+                            {% else %}❌ رد شده{% endif %}
                         </span>
                     </td>
                     <td>{{ charge.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>
                         {% if charge.status == 'pending' %}
-                        <form method="POST" action="/admin/charge/{{ charge.id }}/approve" style="display:inline;">
+                        <form method="POST" action="/admin/charge/{{ charge.id }}/approve" style="display:inline;" 
+                              onsubmit="return confirm('💰 آیا از تایید این درخواست مطمئن هستید؟ مبلغ به کیف پول کاربر اضافه خواهد شد.')">
                             <button class="btn-approve" type="submit">✅ تایید و شارژ</button>
                         </form>
-                        <form method="POST" action="/admin/charge/{{ charge.id }}/reject" style="display:inline;">
+                        <form method="POST" action="/admin/charge/{{ charge.id }}/reject" style="display:inline;" 
+                              onsubmit="return confirm('❌ آیا از رد این درخواست مطمئن هستید؟')">
                             <button class="btn-reject" type="submit">❌ رد</button>
                         </form>
                         {% else %}
                         <span style="color:#95a5a6;">
-                            {% if charge.status == 'paid' %}
-                            {{ charge.paid_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% if charge.status == 'approved' %}
+                            {{ charge.paid_at.strftime('%Y-%m-%d %H:%M') if charge.paid_at else 'تایید شده' }}
                             {% else %}
-                            پردازش شده
+                            رد شده
                             {% endif %}
                         </span>
                         {% endif %}

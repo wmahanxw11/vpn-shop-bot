@@ -76,7 +76,7 @@ class ChargeRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), default='pending')
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid_at = db.Column(db.DateTime, nullable=True)
 
@@ -108,10 +108,12 @@ with app.app_context():
         Setting(key='card_number', value='6037-9916-1234-5678'),
         Setting(key='card_holder', value='علی محمدی'),
         Setting(key='bank_name', value='بانک ملت'),
-        Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'),
+        Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا درخواست شما برای بررسی ارسال شود.'),
         Setting(key='admin_charge_notify', value='✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.'),
         Setting(key='support_message', value='📩 پیام شما به پشتیبانی ارسال شد.\n🆔 شماره تیکت: {ticket_id}\n\n📌 کارشناسان ما در اسرع وقت پاسخ شما را خواهند داد.'),
         Setting(key='admin_support_notify', value='📩 تیکت جدید از کاربر {username}\n🆔 شماره تیکت: {ticket_id}\n📝 موضوع: {subject}\n📅 تاریخ: {date}\n\nبرای پاسخ به تیکت، به پنل مدیریت مراجعه کنید.'),
+        Setting(key='charge_approved_message', value='✅ درخواست شارژ شما تایید شد!\n💰 مبلغ {amount} تومان به کیف پول شما اضافه شد.'),
+        Setting(key='charge_rejected_message', value='❌ درخواست شارژ شما رد شد.\nدر صورت نیاز دوباره تلاش کنید.'),
     ]
     
     for setting in default_settings:
@@ -239,7 +241,7 @@ def get_pending_charges():
 def approve_charge(charge_id):
     charge = ChargeRequest.query.get(charge_id)
     if charge and charge.status == 'pending':
-        charge.status = 'paid'
+        charge.status = 'approved'
         charge.paid_at = datetime.utcnow()
         db.session.commit()
         return charge
@@ -248,7 +250,7 @@ def approve_charge(charge_id):
 def reject_charge(charge_id):
     charge = ChargeRequest.query.get(charge_id)
     if charge and charge.status == 'pending':
-        charge.status = 'cancelled'
+        charge.status = 'rejected'
         db.session.commit()
         return charge
     return None
@@ -257,7 +259,7 @@ def get_charge_message(amount):
     template = get_setting('charge_message', '')
     
     if not template or template == '':
-        template = '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'
+        template = '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا درخواست شما برای بررسی ارسال شود.'
     
     bank_name = get_setting('bank_name', 'بانک ملت')
     card_number = get_setting('card_number', '6037-9916-1234-5678')
@@ -272,7 +274,7 @@ def get_charge_message(amount):
         )
     except KeyError as e:
         logger.error(f"Missing variable in charge message: {e}")
-        return f"💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود."
+        return f"💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا درخواست شما برای بررسی ارسال شود."
 
 # ===== توابع پشتیبانی =====
 def create_support_ticket(user_id, username, subject, message):
@@ -471,7 +473,7 @@ def process_charge_amount(message):
             bot.send_message(
                 user_id,
                 "✅ درخواست شارژ ثبت شد!\n\n"
-                "🔄 پس از واریز، دکمه زیر را بزنید.",
+                "🔄 پس از واریز، دکمه زیر را بزنید تا درخواست شما برای بررسی ارسال شود.",
                 reply_markup=markup
             )
             
@@ -479,6 +481,7 @@ def process_charge_amount(message):
         logger.error(f"Process charge error: {e}")
         bot.send_message(message.chat.id, "❌ خطایی رخ داد! لطفاً دوباره تلاش کنید.")
 
+# ===== تایید پرداخت توسط کاربر =====
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_charge_"))
 def handle_confirm_charge(call):
     try:
@@ -486,27 +489,25 @@ def handle_confirm_charge(call):
         user_id = call.from_user.id
         
         with app.app_context():
-            charge = approve_charge(charge_id)
-            if charge:
-                # افزایش موجودی کاربر
-                add_balance(user_id, charge.amount)
-                add_transaction(user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
-                new_balance = get_user(user_id).balance
-                currency = get_setting('currency', 'تومان')
-                
+            charge = ChargeRequest.query.get(charge_id)
+            if charge and charge.status == 'pending':
+                # فقط وضعیت رو به "در انتظار تایید ادمین" تغییر میدیم
+                # ولی اینجا هیچ کاری نمیکنیم چون قبلاً pending هست
                 bot.send_message(
                     user_id,
-                    f"✅ کیف پول شما به مبلغ **{charge.amount} {currency}** شارژ شد!\n"
-                    f"💰 موجودی جدید: **{new_balance} {currency}**",
-                    parse_mode='Markdown'
+                    "✅ درخواست شما برای بررسی به ادمین ارسال شد.\n"
+                    "⏳ لطفاً منتظر تایید ادمین باشید.\n"
+                    f"🆔 شماره درخواست: {charge.id}"
                 )
                 
+                # اعلان به ادمین که کاربر پرداخت رو تایید کرده
                 admin_id = os.environ.get('ADMIN_ID')
                 if admin_id:
                     bot.send_message(
                         admin_id,
-                        f"✅ درخواست شارژ #{charge.id} توسط کاربر {user_id} تایید شد.\n"
-                        f"💰 مبلغ: {charge.amount} تومان"
+                        f"📌 کاربر {user_id} پرداخت درخواست شارژ #{charge.id} را تایید کرد.\n"
+                        f"💰 مبلغ: {charge.amount} تومان\n\n"
+                        f"لطفاً رسید را بررسی و درخواست را تایید یا رد کنید."
                     )
             else:
                 bot.send_message(user_id, "❌ این درخواست قبلاً پردازش شده است.")
@@ -514,6 +515,7 @@ def handle_confirm_charge(call):
     except Exception as e:
         logger.error(f"Confirm charge error: {e}")
 
+# ===== انصراف از شارژ =====
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_charge_"))
 def handle_cancel_charge(call):
     try:
@@ -891,7 +893,7 @@ def admin_charges():
     charges = get_all_charge_requests()
     return render_template('charges.html', charges=charges)
 
-# ===== روت تایید شارژ از پنل مدیریت =====
+# ===== تایید شارژ توسط ادمین =====
 @app.route('/admin/charge/<int:charge_id>/approve', methods=['POST'])
 def admin_charge_approve(charge_id):
     if not session.get('logged_in'):
@@ -904,17 +906,16 @@ def admin_charge_approve(charge_id):
             add_balance(charge.user_id, charge.amount)
             add_transaction(charge.user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
             
+            # ارسال پیام تایید به کاربر
             try:
-                bot.send_message(
-                    charge.user_id,
-                    f"✅ درخواست شارژ شما تایید شد!\n"
-                    f"💰 مبلغ {charge.amount} تومان به کیف پول شما اضافه شد."
-                )
+                msg = get_setting('charge_approved_message', '').format(amount=charge.amount)
+                bot.send_message(charge.user_id, msg)
             except:
                 pass
     
     return redirect(url_for('admin_charges'))
 
+# ===== رد شارژ توسط ادمین =====
 @app.route('/admin/charge/<int:charge_id>/reject', methods=['POST'])
 def admin_charge_reject(charge_id):
     if not session.get('logged_in'):
@@ -923,12 +924,10 @@ def admin_charge_reject(charge_id):
     with app.app_context():
         charge = reject_charge(charge_id)
         if charge:
+            # ارسال پیام رد به کاربر
             try:
-                bot.send_message(
-                    charge.user_id,
-                    f"❌ درخواست شارژ شما رد شد.\n"
-                    f"در صورت نیاز دوباره تلاش کنید."
-                )
+                msg = get_setting('charge_rejected_message', '')
+                bot.send_message(charge.user_id, msg)
             except:
                 pass
     
@@ -1088,6 +1087,8 @@ def admin_settings():
         admin_charge_notify = request.form.get('admin_charge_notify')
         support_message = request.form.get('support_message')
         admin_support_notify = request.form.get('admin_support_notify')
+        charge_approved_message = request.form.get('charge_approved_message')
+        charge_rejected_message = request.form.get('charge_rejected_message')
         
         with app.app_context():
             if currency:
@@ -1114,6 +1115,10 @@ def admin_settings():
                 update_setting('support_message', support_message)
             if admin_support_notify:
                 update_setting('admin_support_notify', admin_support_notify)
+            if charge_approved_message:
+                update_setting('charge_approved_message', charge_approved_message)
+            if charge_rejected_message:
+                update_setting('charge_rejected_message', charge_rejected_message)
         
         return redirect(url_for('admin_settings', saved=1))
     
@@ -1124,6 +1129,8 @@ def admin_settings():
     admin_charge_notify = get_setting('admin_charge_notify', '')
     support_message = get_setting('support_message', '')
     admin_support_notify = get_setting('admin_support_notify', '')
+    charge_approved_message = get_setting('charge_approved_message', '')
+    charge_rejected_message = get_setting('charge_rejected_message', '')
     
     users_count = User.query.count()
     links_count = SubscriptionLink.query.count()
@@ -1141,6 +1148,8 @@ def admin_settings():
         admin_charge_notify=admin_charge_notify,
         support_message=support_message,
         admin_support_notify=admin_support_notify,
+        charge_approved_message=charge_approved_message,
+        charge_rejected_message=charge_rejected_message,
         users_count=users_count,
         links_count=links_count,
         pending_charges=pending_charges,

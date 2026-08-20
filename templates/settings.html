@@ -21,7 +21,7 @@
             justify-content: center;
         }
         .container {
-            max-width: 700px;
+            max-width: 750px;
             width: 100%;
             margin: 20px auto;
             background: white;
@@ -357,7 +357,7 @@
                 <label for="charge_message">
                     <span class="label-icon">📝</span> متن پیام شارژ به کاربر
                 </label>
-                <textarea id="charge_message" name="charge_message" rows="6">{{ charge_message or '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.' }}</textarea>
+                <textarea id="charge_message" name="charge_message" rows="6">{{ charge_message or '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا درخواست شما برای بررسی ارسال شود.' }}</textarea>
                 <div class="input-hint">
                     <strong>متغیرهای قابل استفاده:</strong><br>
                     {amount} - مبلغ شارژ<br>
@@ -369,7 +369,7 @@
             
             <div class="form-group">
                 <label for="admin_charge_notify">
-                    <span class="label-icon">📱</span> متن اعلان به ادمین
+                    <span class="label-icon">📱</span> متن اعلان به ادمین (درخواست شارژ)
                 </label>
                 <textarea id="admin_charge_notify" name="admin_charge_notify" rows="4">{{ admin_charge_notify or '✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.' }}</textarea>
                 <div class="input-hint">
@@ -377,6 +377,53 @@
                     {username} - نام کاربری<br>
                     {amount} - مبلغ شارژ<br>
                     {user_id} - آیدی تلگرام کاربر<br>
+                    {date} - تاریخ و زمان
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="charge_approved_message">
+                    <span class="label-icon">✅</span> پیام تایید شارژ به کاربر
+                </label>
+                <textarea id="charge_approved_message" name="charge_approved_message" rows="3">{{ charge_approved_message or '✅ درخواست شارژ شما تایید شد!\n💰 مبلغ {amount} تومان به کیف پول شما اضافه شد.' }}</textarea>
+                <div class="input-hint">از {amount} برای نمایش مبلغ استفاده کنید.</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="charge_rejected_message">
+                    <span class="label-icon">❌</span> پیام رد شارژ به کاربر
+                </label>
+                <textarea id="charge_rejected_message" name="charge_rejected_message" rows="3">{{ charge_rejected_message or '❌ درخواست شارژ شما رد شد.\nدر صورت نیاز دوباره تلاش کنید.' }}</textarea>
+                <div class="input-hint">پیامی که در صورت رد درخواست به کاربر نمایش داده می‌شود.</div>
+            </div>
+            
+            <hr class="separator">
+            
+            <!-- ========================================== -->
+            <!-- تنظیمات پشتیبانی -->
+            <!-- ========================================== -->
+            <div class="section-title">
+                <span class="title-icon">📩</span> تنظیمات پشتیبانی
+            </div>
+            
+            <div class="form-group">
+                <label for="support_message">
+                    <span class="label-icon">📝</span> پیام ثبت تیکت به کاربر
+                </label>
+                <textarea id="support_message" name="support_message" rows="3">{{ support_message or '📩 پیام شما به پشتیبانی ارسال شد.\n🆔 شماره تیکت: {ticket_id}\n\n📌 کارشناسان ما در اسرع وقت پاسخ شما را خواهند داد.' }}</textarea>
+                <div class="input-hint">از {ticket_id} برای نمایش شماره تیکت استفاده کنید.</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="admin_support_notify">
+                    <span class="label-icon">📱</span> متن اعلان تیکت جدید به ادمین
+                </label>
+                <textarea id="admin_support_notify" name="admin_support_notify" rows="4">{{ admin_support_notify or '📩 تیکت جدید از کاربر {username}\n🆔 شماره تیکت: {ticket_id}\n📝 موضوع: {subject}\n📅 تاریخ: {date}\n\nبرای پاسخ به تیکت، به پنل مدیریت مراجعه کنید.' }}</textarea>
+                <div class="input-hint">
+                    <strong>متغیرهای قابل استفاده:</strong><br>
+                    {username} - نام کاربری<br>
+                    {ticket_id} - شماره تیکت<br>
+                    {subject} - موضوع تیکت<br>
                     {date} - تاریخ و زمان
                 </div>
             </div>
@@ -399,13 +446,27 @@
                 <span>{{ links_count if links_count is defined else '—' }}</span>
             </div>
             <div class="info-row">
-                <span>📋 درخواست‌های در انتظار</span>
+                <span>📋 درخواست‌های شارژ در انتظار</span>
                 <span>
                     {% if pending_charges is defined %}
                         {% if pending_charges > 0 %}
                             <span class="badge badge-pending">{{ pending_charges }}</span>
                         {% else %}
                             {{ pending_charges }}
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span>📩 تیکت‌های باز</span>
+                <span>
+                    {% if pending_tickets is defined %}
+                        {% if pending_tickets > 0 %}
+                            <span class="badge badge-pending">{{ pending_tickets }}</span>
+                        {% else %}
+                            {{ pending_tickets }}
                         {% endif %}
                     {% else %}
                         —
