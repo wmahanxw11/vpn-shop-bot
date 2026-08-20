@@ -2,29 +2,325 @@
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>افزودن لینک جدید</title>
     <style>
-        body{font-family:'Segoe UI',sans-serif;margin:20px;background:#f5f6fa}
-        .container{max-width:600px;margin:50px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .back{display:inline-block;margin-bottom:20px;color:#3498db;text-decoration:none}
-        .form-group{margin-bottom:20px}
-        label{display:block;margin-bottom:5px;font-weight:bold}
-        input[type="text"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:16px}
-        button{padding:10px 30px;background:#27ae60;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer}
-        button:hover{background:#219a52}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            margin: 20px auto;
+            background: white;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 25px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .back:hover {
+            color: #2176ae;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .header h2 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin: 0;
+        }
+        .header .icon-big {
+            font-size: 32px;
+        }
+        .form-group {
+            margin-bottom: 22px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        label .label-icon {
+            margin-right: 6px;
+        }
+        label .required {
+            color: #e74c3c;
+        }
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+            background: #fafbfc;
+            color: #2c3e50;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: {{ primary_color or '#667eea' }};
+            background: white;
+        }
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: left 15px center;
+            padding-left: 40px;
+        }
+        select option {
+            padding: 10px;
+        }
+        .input-hint {
+            font-size: 12px;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+        .plan-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        .plan-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .plan-badge.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(39, 174, 96, 0.3);
+        }
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .alert {
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .alert-info .alert-icon {
+            font-size: 20px;
+        }
+        .separator {
+            border: none;
+            border-top: 2px dashed #ecf0f1;
+            margin: 25px 0;
+        }
+        .link-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 13px;
+            color: #2c3e50;
+            display: none;
+        }
+        .link-preview.show {
+            display: block;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            .header h2 {
+                font-size: 20px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <a href="/admin" class="back">← بازگشت به داشبورد</a>
-        <h2>➕ افزودن لینک جدید</h2>
-        <form method="POST">
-            <div class="form-group">
-                <label for="link_url">لینک ساب</label>
-                <input type="text" id="link_url" name="link_url" placeholder="https://example.com/subscription" required>
+        
+        <div class="header">
+            <span class="icon-big">➕</span>
+            <h2>افزودن لینک ساب جدید</h2>
+        </div>
+        
+        <div class="alert alert-info">
+            <span class="alert-icon">💡</span>
+            <div>
+                <strong>نکته:</strong> هر لینک ساب به یک پلن خاص تعلق دارد.
+                وقتی کاربر آن پلن را بخرد، این لینک به او داده می‌شود.
             </div>
-            <button type="submit">افزودن لینک</button>
+        </div>
+        
+        <form method="POST" id="addLinkForm">
+            <div class="form-group">
+                <label for="link_url">
+                    <span class="label-icon">🔗</span> لینک ساب 
+                    <span class="required">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="link_url" 
+                    name="link_url" 
+                    placeholder="مثلاً: https://example.com/subscription/abc123" 
+                    required
+                    oninput="previewLink()"
+                >
+                <div class="input-hint">لینک اشتراکی که کاربر پس از خرید دریافت می‌کند</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="plan_id">
+                    <span class="label-icon">📦</span> پلن مربوطه 
+                    <span class="required">*</span>
+                </label>
+                <select id="plan_id" name="plan_id" required>
+                    <option value="">-- انتخاب پلن --</option>
+                    {% for plan in plans %}
+                    <option value="{{ plan.id }}" {% if plan.is_active %}selected{% endif %}>
+                        {{ plan.name }} - {{ plan.volume }} - {{ plan.duration }} 
+                        ({{ plan.price }} {{ currency }})
+                        {% if plan.is_active %}
+                        <span class="plan-badge active">فعال</span>
+                        {% else %}
+                        <span class="plan-badge inactive">غیرفعال</span>
+                        {% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="input-hint">
+                    پلنی که این لینک برای آن در نظر گرفته شده است.
+                    {% if not plans %}
+                    <span style="color: #e74c3c;">⚠️ هیچ پلنی تعریف نشده! ابتدا یک پلن بسازید.</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="link-preview" id="linkPreview">
+                <strong>🔗 پیش‌نمایش لینک:</strong><br>
+                <span id="previewText"></span>
+            </div>
+            
+            <hr class="separator">
+            
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <a href="/admin/plans" style="color: #3498db; text-decoration: none; font-size: 14px;">
+                    📦 مدیریت پلن‌ها
+                </a>
+                <span style="color: #ddd;">|</span>
+                <a href="/admin/links" style="color: #3498db; text-decoration: none; font-size: 14px;">
+                    🔗 لیست لینک‌ها
+                </a>
+            </div>
+            
+            <button type="submit" class="btn-submit" {% if not plans %}disabled{% endif %}>
+                💾 افزودن لینک
+            </button>
+            
+            {% if not plans %}
+            <div style="text-align: center; margin-top: 15px; color: #e74c3c; font-size: 14px;">
+                ⚠️ برای افزودن لینک، ابتدا یک پلن بسازید!
+                <br>
+                <a href="/admin/plans" style="color: #3498db;">رفتن به مدیریت پلن‌ها</a>
+            </div>
+            {% endif %}
         </form>
     </div>
+    
+    <script>
+        function previewLink() {
+            const input = document.getElementById('link_url');
+            const preview = document.getElementById('linkPreview');
+            const previewText = document.getElementById('previewText');
+            
+            if (input.value.trim()) {
+                previewText.textContent = input.value.trim();
+                preview.classList.add('show');
+            } else {
+                preview.classList.remove('show');
+            }
+        }
+        
+        // اعتبارسنجی قبل از ارسال
+        document.getElementById('addLinkForm').addEventListener('submit', function(e) {
+            const link = document.getElementById('link_url').value.trim();
+            const plan = document.getElementById('plan_id').value;
+            
+            if (!link) {
+                e.preventDefault();
+                alert('⚠️ لطفاً لینک ساب را وارد کنید!');
+                return false;
+            }
+            
+            if (!plan) {
+                e.preventDefault();
+                alert('⚠️ لطفاً یک پلن را انتخاب کنید!');
+                return false;
+            }
+            
+            if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                if (!confirm('⚠️ لینک وارد شده با http:// یا https:// شروع نمی‌شود. آیا مطمئن هستید؟')) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    </script>
 </body>
 </html>
