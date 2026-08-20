@@ -48,7 +48,7 @@ class Transaction(db.Model):
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ===== توابع کمکی =====
+# ===== توابع =====
 def get_user(telegram_id):
     with app.app_context():
         user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -68,13 +68,13 @@ if not TOKEN:
 logger.info(f"✅ Token: {TOKEN[:10]}...")
 bot = telebot.TeleBot(TOKEN)
 
-# ===== هندلر start =====
+# ===== هندلرها =====
 @bot.message_handler(commands=['start'])
 def start(message):
     try:
         user_id = message.from_user.id
         username = message.from_user.username
-        logger.info(f"📩 /start from: {user_id} (@{username})")
+        logger.info(f"📩 /start from: {user_id}")
         
         with app.app_context():
             user = get_user(user_id)
@@ -86,17 +86,14 @@ def start(message):
             user_id,
             f"👋 به ربات فروش VPN خوش آمدید!\n"
             f"💰 موجودی: {balance} تومان\n\n"
-            f"دستورات:\n"
             f"/balance - موجودی"
         )
-        logger.info(f"✅ /start response sent to: {user_id}")
+        logger.info(f"✅ /start response sent")
         
     except Exception as e:
-        error_msg = f"❌ /start error: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
+        logger.error(f"❌ /start error: {str(e)}\n{traceback.format_exc()}")
         bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
-# ===== هندلر balance =====
 @bot.message_handler(commands=['balance'])
 def balance(message):
     try:
@@ -108,23 +105,19 @@ def balance(message):
             balance = user.balance
         
         bot.send_message(user_id, f"💰 موجودی شما: {balance} تومان")
-        logger.info(f"✅ /balance response sent to: {user_id}")
+        logger.info(f"✅ /balance response sent")
         
     except Exception as e:
-        error_msg = f"❌ /balance error: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
+        logger.error(f"❌ /balance error: {str(e)}\n{traceback.format_exc()}")
         bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
-# ===== هندلر پیام‌های معمولی =====
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
     try:
-        user_id = message.from_user.id
-        logger.info(f"📩 Echo from: {user_id}: {message.text[:50]}")
         bot.send_message(
             message.chat.id,
             f"📝 پیام شما: {message.text}\n\n"
-            f"دستورات موجود:\n"
+            f"دستورات:\n"
             f"/start - شروع\n"
             f"/balance - موجودی"
         )
@@ -156,7 +149,6 @@ def webhook():
 
 # ===== راه‌اندازی =====
 if __name__ == '__main__':
-    # ساخت جدول‌ها قبل از اجرا
     with app.app_context():
         logger.info("📦 Creating database tables...")
         db.create_all()
