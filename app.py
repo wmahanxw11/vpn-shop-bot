@@ -16,7 +16,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ===== تنظیمات لاگ =====
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -32,23 +31,41 @@ class User(db.Model):
     balance = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ===== توابع کمکی با context =====
+class SubscriptionLink(db.Model):
+    __tablename__ = 'subscription_links'
+    id = db.Column(db.Integer, primary_key=True)
+    link = db.Column(db.String(500), unique=True, nullable=False)
+    is_used = db.Column(db.Boolean, default=False)
+    used_by = db.Column(db.Integer, nullable=True)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Transaction(db.Model):
+    __tablename__ = 'transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# ===== توابع کمکی =====
 def get_user(telegram_id):
-    user = User.query.filter_by(telegram_id=telegram_id).first()
-    if not user:
-        user = User(telegram_id=telegram_id)
-        db.session.add(user)
-        db.session.commit()
-        logger.info(f"✅ New user created: {telegram_id}")
-    return user
+    with app.app_context():
+        user = User.query.filter_by(telegram_id=telegram_id).first()
+        if not user:
+            user = User(telegram_id=telegram_id)
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"✅ New user: {telegram_id}")
+        return user
 
 # ===== ربات =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 if not TOKEN:
-    logger.error("❌ TELEGRAM_BOT_TOKEN not set!")
+    logger.error("❌ TOKEN not set!")
     raise ValueError("TELEGRAM_BOT_TOKEN is required")
 
-logger.info(f"✅ Token loaded: {TOKEN[:10]}...")
+logger.info(f"✅ Token: {TOKEN[:10]}...")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== هندلر start =====
@@ -59,7 +76,6 @@ def start(message):
         username = message.from_user.username
         logger.info(f"📩 /start from: {user_id} (@{username})")
         
-        # استفاده از context برای دیتابیس
         with app.app_context():
             user = get_user(user_id)
             user.username = username
@@ -69,7 +85,9 @@ def start(message):
         bot.send_message(
             user_id,
             f"👋 به ربات فروش VPN خوش آمدید!\n"
-            f"💰 موجودی: {balance} تومان"
+            f"💰 موجودی: {balance} تومان\n\n"
+            f"دستورات:\n"
+            f"/balance - موجودی"
         )
         logger.info(f"✅ /start response sent to: {user_id}")
         
@@ -128,7 +146,6 @@ def webhook():
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         
-        # پردازش در context برنامه
         with app.app_context():
             bot.process_new_updates([update])
         
@@ -139,9 +156,11 @@ def webhook():
 
 # ===== راه‌اندازی =====
 if __name__ == '__main__':
+    # ساخت جدول‌ها قبل از اجرا
     with app.app_context():
+        logger.info("📦 Creating database tables...")
         db.create_all()
-        logger.info("✅ Database tables created")
+        logger.info("✅ Database tables created successfully")
     
     port = int(os.environ.get('PORT', 8080))
     logger.info(f"🚀 Starting on port {port}")
