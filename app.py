@@ -72,6 +72,15 @@ class Setting(db.Model):
     value = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class ChargeRequest(db.Model):
+    __tablename__ = 'charge_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.telegram_id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    paid_at = db.Column(db.DateTime, nullable=True)
+
 # ============================================
 # ساخت جدول‌ها و داده‌های اولیه
 # ============================================
@@ -79,20 +88,23 @@ class Setting(db.Model):
 with app.app_context():
     db.create_all()
     
-    # تنظیمات پیش‌فرض
     default_settings = [
         Setting(key='currency', value='تومان'),
         Setting(key='bot_name', value='فروشگاه VPN'),
         Setting(key='theme', value='default'),
         Setting(key='primary_color', value='#667eea'),
         Setting(key='secondary_color', value='#764ba2'),
+        Setting(key='card_number', value='6037-9916-1234-5678'),
+        Setting(key='card_holder', value='علی محمدی'),
+        Setting(key='bank_name', value='بانک ملت'),
+        Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، رسید را برای ما ارسال کنید تا کیف پول شما شارژ شود.'),
+        Setting(key='admin_charge_notify', value='✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.'),
     ]
     
     for setting in default_settings:
         if not Setting.query.filter_by(key=setting.key).first():
             db.session.add(setting)
     
-    # پلن‌های پیش‌فرض
     default_plans = [
         Plan(name='پایه', volume='10GB', duration='1 ماهه', price=15000),
         Plan(name='استاندارد', volume='30GB', duration='1 ماهه', price=35000),
@@ -193,6 +205,45 @@ def assign_link_to_user(link_id, telegram_id):
         return True
     return False
 
+def create_charge_request(user_id, amount):
+    charge = ChargeRequest(
+        user_id=user_id,
+        amount=amount,
+        status='pending'
+    )
+    db.session.add(charge)
+    db.session.commit()
+    return charge
+
+def get_pending_charges():
+    return ChargeRequest.query.filter_by(status='pending').order_by(ChargeRequest.created_at.desc()).all()
+
+def approve_charge(charge_id):
+    charge = ChargeRequest.query.get(charge_id)
+    if charge and charge.status == 'pending':
+        charge.status = 'paid'
+        charge.paid_at = datetime.utcnow()
+        db.session.commit()
+        return charge
+    return None
+
+def reject_charge(charge_id):
+    charge = ChargeRequest.query.get(charge_id)
+    if charge and charge.status == 'pending':
+        charge.status = 'cancelled'
+        db.session.commit()
+        return charge
+    return None
+
+def get_charge_message(amount):
+    template = get_setting('charge_message', '')
+    return template.format(
+        amount=amount,
+        bank_name=get_setting('bank_name', 'بانک ملت'),
+        card_number=get_setting('card_number', '6037-9916-1234-5678'),
+        card_holder=get_setting('card_holder', 'علی محمدی')
+    )
+
 # ============================================
 # ربات تلگرام
 # ============================================
@@ -217,7 +268,8 @@ def start(message):
         markup.add(
             InlineKeyboardButton("💰 کیف پول", callback_data="wallet"),
             InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_plans"),
-            InlineKeyboardButton("📊 وضعیت", callback_data="status")
+            InlineKeyboardButton("📊 وضعیت", callback_data="status"),
+            InlineKeyboardButton("💰 شارژ کیف پول", callback_data="charge_wallet")
         )
         
         bot.send_message(
@@ -241,6 +293,128 @@ def balance(message):
     except Exception as e:
         logger.error(f"Balance error: {e}")
 
+@bot.message_handler(commands=['charge'])
+def charge(message):
+    try:
+        user_id = message.from_user.id
+        username = message.from_user.username or 'بدون یوزرنیم'
+        
+        msg = bot.send_message(
+            user_id,
+            "💰 مبلغ مورد نظر برای شارژ کیف پول را به تومان وارد کنید:\n"
+            "(مثلاً: 50000)"
+        )
+        bot.register_next_step_handler(msg, process_charge_amount)
+    except Exception as e:
+        logger.error(f"Charge error: {e}")
+
+def process_charge_amount(message):
+    try:
+        user_id = message.from_user.id
+        username = message.from_user.username or 'بدون یوزرنیم'
+        
+        try:
+            amount = int(message.text.strip())
+            if amount <= 0:
+                raise ValueError("مبلغ باید بیشتر از صفر باشد")
+        except:
+            bot.send_message(user_id, "❌ لطفاً یک عدد معتبر وارد کنید!")
+            return
+        
+        with app.app_context():
+            charge = create_charge_request(user_id, amount)
+            
+            charge_text = get_charge_message(amount)
+            bot.send_message(
+                user_id,
+                f"{charge_text}\n\n"
+                f"🆔 شماره درخواست: {charge.id}\n"
+                f"📌 پس از واریز، دکمه زیر را بزنید."
+            )
+            
+            admin_id = os.environ.get('ADMIN_ID')
+            if admin_id:
+                notify_text = get_setting('admin_charge_notify', '').format(
+                    username=username,
+                    amount=amount,
+                    user_id=user_id,
+                    date=datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                )
+                try:
+                    bot.send_message(admin_id, notify_text)
+                except:
+                    pass
+            
+            markup = InlineKeyboardMarkup()
+            markup.add(
+                InlineKeyboardButton("✅ پرداخت انجام شد", callback_data=f"confirm_charge_{charge.id}"),
+                InlineKeyboardButton("❌ انصراف", callback_data=f"cancel_charge_{charge.id}")
+            )
+            bot.send_message(
+                user_id,
+                "✅ درخواست شارژ ثبت شد!\n\n"
+                "🔄 پس از واریز، دکمه زیر را بزنید تا به ادمین اطلاع داده شود.",
+                reply_markup=markup
+            )
+            
+    except Exception as e:
+        logger.error(f"Process charge error: {e}")
+        bot.send_message(message.chat.id, "❌ خطایی رخ داد! لطفاً دوباره تلاش کنید.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_charge_"))
+def handle_confirm_charge(call):
+    try:
+        charge_id = int(call.data.split("_")[2])
+        user_id = call.from_user.id
+        
+        with app.app_context():
+            charge = approve_charge(charge_id)
+            if charge:
+                add_balance(user_id, charge.amount)
+                add_transaction(user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
+                
+                bot.send_message(
+                    user_id,
+                    f"✅ کیف پول شما به مبلغ {charge.amount} تومان شارژ شد!\n"
+                    f"💰 موجودی جدید: {get_user(user_id).balance} تومان"
+                )
+                
+                admin_id = os.environ.get('ADMIN_ID')
+                if admin_id:
+                    bot.send_message(
+                        admin_id,
+                        f"✅ درخواست شارژ #{charge.id} توسط کاربر {user_id} تایید شد.\n"
+                        f"💰 مبلغ: {charge.amount} تومان"
+                    )
+            else:
+                bot.send_message(user_id, "❌ این درخواست قبلاً پردازش شده است.")
+                
+    except Exception as e:
+        logger.error(f"Confirm charge error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_charge_"))
+def handle_cancel_charge(call):
+    try:
+        charge_id = int(call.data.split("_")[2])
+        user_id = call.from_user.id
+        
+        with app.app_context():
+            charge = reject_charge(charge_id)
+            if charge:
+                bot.send_message(user_id, "❌ درخواست شارژ لغو شد.")
+                
+                admin_id = os.environ.get('ADMIN_ID')
+                if admin_id:
+                    bot.send_message(
+                        admin_id,
+                        f"❌ درخواست شارژ #{charge_id} توسط کاربر {user_id} لغو شد."
+                    )
+            else:
+                bot.send_message(user_id, "❌ این درخواست قبلاً پردازش شده است.")
+                
+    except Exception as e:
+        logger.error(f"Cancel charge error: {e}")
+
 @bot.callback_query_handler(func=lambda call: call.data == "wallet")
 def handle_wallet(call):
     try:
@@ -252,6 +426,10 @@ def handle_wallet(call):
         bot.send_message(user_id, f"💰 موجودی شما: {balance} {currency}")
     except Exception as e:
         logger.error(f"Wallet error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "charge_wallet")
+def handle_charge_wallet(call):
+    charge(call.message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "buy_plans")
 def handle_buy_plans(call):
@@ -375,7 +553,7 @@ def echo_all(message):
     )
 
 # ============================================
-# تابع inject_theme برای اعمال تم به همه صفحات
+# تابع inject_theme
 # ============================================
 
 @app.context_processor
@@ -416,6 +594,7 @@ def admin_dashboard():
         links_count = SubscriptionLink.query.count()
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
+        pending_charges = ChargeRequest.query.filter_by(status='pending').count()
         plans = Plan.query.all()
     
     return render_template(
@@ -425,6 +604,7 @@ def admin_dashboard():
         used_links=used_links,
         unused_links=links_count - used_links,
         total_income=total_income,
+        pending_charges=pending_charges,
         plans=plans
     )
 
@@ -472,8 +652,54 @@ def admin_transactions():
     plans = Plan.query.all()
     return render_template('transactions.html', transactions=transactions, plans=plans)
 
+@app.route('/admin/charges')
+def admin_charges():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    charges = get_pending_charges()
+    return render_template('charges.html', charges=charges)
+
+@app.route('/admin/charge/<int:charge_id>/approve', methods=['POST'])
+def admin_charge_approve(charge_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    charge = approve_charge(charge_id)
+    if charge:
+        add_balance(charge.user_id, charge.amount)
+        add_transaction(charge.user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
+        
+        try:
+            bot.send_message(
+                charge.user_id,
+                f"✅ درخواست شارژ شما تایید شد!\n"
+                f"💰 مبلغ {charge.amount} تومان به کیف پول شما اضافه شد."
+            )
+        except:
+            pass
+    
+    return redirect(url_for('admin_charges'))
+
+@app.route('/admin/charge/<int:charge_id>/reject', methods=['POST'])
+def admin_charge_reject(charge_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    charge = reject_charge(charge_id)
+    if charge:
+        try:
+            bot.send_message(
+                charge.user_id,
+                f"❌ درخواست شارژ شما رد شد.\n"
+                f"در صورت نیاز دوباره تلاش کنید."
+            )
+        except:
+            pass
+    
+    return redirect(url_for('admin_charges'))
+
 # ============================================
-# مدیریت موجودی کاربران (شارژ، کسر، تنظیم)
+# مدیریت موجودی کاربران
 # ============================================
 
 @app.route('/admin/charge', methods=['POST'])
@@ -580,6 +806,11 @@ def admin_settings():
         new_theme = request.form.get('theme')
         new_primary = request.form.get('primary_color')
         new_secondary = request.form.get('secondary_color')
+        card_number = request.form.get('card_number')
+        card_holder = request.form.get('card_holder')
+        bank_name = request.form.get('bank_name')
+        charge_message = request.form.get('charge_message')
+        admin_charge_notify = request.form.get('admin_charge_notify')
         
         with app.app_context():
             if currency:
@@ -592,6 +823,16 @@ def admin_settings():
                 update_setting('primary_color', new_primary)
             if new_secondary:
                 update_setting('secondary_color', new_secondary)
+            if card_number:
+                update_setting('card_number', card_number)
+            if card_holder:
+                update_setting('card_holder', card_holder)
+            if bank_name:
+                update_setting('bank_name', bank_name)
+            if charge_message:
+                update_setting('charge_message', charge_message)
+            if admin_charge_notify:
+                update_setting('admin_charge_notify', admin_charge_notify)
         
         return redirect(url_for('admin_settings', saved=1))
     
