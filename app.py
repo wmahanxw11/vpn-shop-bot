@@ -457,6 +457,8 @@ def admin_transactions():
     plans = Plan.query.all()
     return render_template('transactions.html', transactions=transactions, plans=plans)
 
+# ===== مدیریت موجودی کاربران =====
+
 @app.route('/admin/charge', methods=['POST'])
 def admin_charge():
     if not session.get('logged_in'):
@@ -477,6 +479,71 @@ def admin_charge():
             )
         except:
             pass
+        
+        return redirect(url_for('admin_users'))
+    return "خطا", 400
+
+@app.route('/admin/deduct', methods=['POST'])
+def admin_deduct():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    telegram_id = request.form.get('telegram_id')
+    amount = float(request.form.get('amount', 0))
+    
+    if telegram_id and amount > 0:
+        with app.app_context():
+            user = get_user(int(telegram_id))
+            if user.balance >= amount:
+                user.balance -= amount
+                db.session.commit()
+                add_transaction(int(telegram_id), -amount, "کسر موجودی توسط ادمین")
+                
+                try:
+                    bot.send_message(
+                        int(telegram_id),
+                        f"🔻 {amount} {get_setting('currency', 'تومان')} از کیف پول شما کسر شد!\n"
+                        f"💰 موجودی جدید: {user.balance} {get_setting('currency', 'تومان')}"
+                    )
+                except:
+                    pass
+            else:
+                return "موجودی کافی نیست!", 400
+        
+        return redirect(url_for('admin_users'))
+    return "خطا", 400
+
+@app.route('/admin/set_balance', methods=['POST'])
+def admin_set_balance():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    telegram_id = request.form.get('telegram_id')
+    amount = float(request.form.get('amount', 0))
+    
+    if telegram_id and amount >= 0:
+        with app.app_context():
+            user = get_user(int(telegram_id))
+            old_balance = user.balance
+            user.balance = amount
+            db.session.commit()
+            
+            diff = amount - old_balance
+            if diff != 0:
+                add_transaction(
+                    int(telegram_id), 
+                    diff, 
+                    f"تنظیم موجودی توسط ادمین (از {old_balance} به {amount})"
+                )
+                
+                try:
+                    bot.send_message(
+                        int(telegram_id),
+                        f"⚡ موجودی کیف پول شما توسط ادمین تنظیم شد!\n"
+                        f"💰 موجودی جدید: {amount} {get_setting('currency', 'تومان')}"
+                    )
+                except:
+                    pass
         
         return redirect(url_for('admin_users'))
     return "خطا", 400
