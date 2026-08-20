@@ -91,6 +91,23 @@
             height: 50px;
             cursor: pointer;
         }
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            background: #fafbfc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            resize: vertical;
+            min-height: 80px;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
         .input-hint {
             font-size: 12px;
             color: #95a5a6;
@@ -167,6 +184,14 @@
             color: #2c3e50;
             font-weight: 500;
         }
+        .section-title {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         @media (max-width: 480px) {
             .container {
                 padding: 20px;
@@ -194,6 +219,9 @@
         {% endif %}
         
         <form method="POST">
+            <!-- تنظیمات عمومی -->
+            <div class="section-title">🤖 تنظیمات عمومی</div>
+            
             <div class="form-group">
                 <label for="currency">
                     <span class="label-icon">💵</span> واحد پول
@@ -211,6 +239,9 @@
             </div>
             
             <hr class="separator">
+            
+            <!-- تنظیمات تم -->
+            <div class="section-title">🎨 تنظیمات ظاهری</div>
             
             <div class="form-group">
                 <label for="theme">
@@ -232,7 +263,7 @@
                 <label for="primary_color">
                     <span class="label-icon">🎨</span> رنگ اصلی
                 </label>
-                <input type="color" id="primary_color" name="primary_color" value="{{ primary }}">
+                <input type="color" id="primary_color" name="primary_color" value="{{ primary_color }}">
                 <div class="input-hint">رنگ اصلی پنل مدیریت</div>
             </div>
             
@@ -240,25 +271,76 @@
                 <label for="secondary_color">
                     <span class="label-icon">🎨</span> رنگ ثانویه
                 </label>
-                <input type="color" id="secondary_color" name="secondary_color" value="{{ secondary }}">
+                <input type="color" id="secondary_color" name="secondary_color" value="{{ secondary_color }}">
                 <div class="input-hint">رنگ ثانویه پنل مدیریت</div>
             </div>
             
             <div class="theme-preview">
-                <div class="preview-color" style="background: {{ primary }}" id="previewPrimary"></div>
-                <div class="preview-color" style="background: {{ secondary }}" id="previewSecondary"></div>
+                <div class="preview-color" style="background: {{ primary_color }}" id="previewPrimary"></div>
+                <div class="preview-color" style="background: {{ secondary_color }}" id="previewSecondary"></div>
                 <div class="preview-text">پیش‌نمایش رنگ‌ها</div>
             </div>
             
             <hr class="separator">
             
+            <!-- تنظیمات پرداخت -->
+            <div class="section-title">💳 تنظیمات پرداخت</div>
+            
+            <div class="form-group">
+                <label for="card_number">
+                    <span class="label-icon">💳</span> شماره کارت
+                </label>
+                <input type="text" id="card_number" name="card_number" value="{{ card_number or '6037-9916-1234-5678' }}">
+                <div class="input-hint">شماره کارتی که کاربران باید به آن واریز کنند</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="card_holder">
+                    <span class="label-icon">👤</span> صاحب حساب
+                </label>
+                <input type="text" id="card_holder" name="card_holder" value="{{ card_holder or 'علی محمدی' }}">
+                <div class="input-hint">نام صاحب حساب کارت</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="bank_name">
+                    <span class="label-icon">🏦</span> نام بانک
+                </label>
+                <input type="text" id="bank_name" name="bank_name" value="{{ bank_name or 'بانک ملت' }}">
+                <div class="input-hint">نام بانک</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="charge_message">
+                    <span class="label-icon">📝</span> متن پیام شارژ به کاربر
+                </label>
+                <textarea id="charge_message" name="charge_message" rows="6">{{ charge_message or '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.' }}</textarea>
+                <div class="input-hint">از {amount} برای مبلغ، {bank_name} برای نام بانک، {card_number} برای شماره کارت و {card_holder} برای صاحب حساب استفاده کنید.</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="admin_charge_notify">
+                    <span class="label-icon">📱</span> متن اعلان به ادمین
+                </label>
+                <textarea id="admin_charge_notify" name="admin_charge_notify" rows="4">{{ admin_charge_notify or '✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.' }}</textarea>
+                <div class="input-hint">از {username}، {amount}، {user_id} و {date} استفاده کنید.</div>
+            </div>
+            
+            <hr class="separator">
+            
+            <!-- آمار -->
+            <div class="section-title">📊 آمار</div>
             <div class="info-row">
-                <span>📊 تعداد کاربران</span>
+                <span>👥 تعداد کاربران</span>
                 <span>{{ users_count if users_count is defined else '—' }}</span>
             </div>
             <div class="info-row">
                 <span>🔗 کل لینک‌ها</span>
                 <span>{{ links_count if links_count is defined else '—' }}</span>
+            </div>
+            <div class="info-row">
+                <span>📋 درخواست‌های در انتظار</span>
+                <span>{{ pending_charges if pending_charges is defined else '—' }}</span>
             </div>
             
             <button type="submit" class="btn-save">💾 ذخیره تنظیمات</button>

@@ -96,6 +96,9 @@
         .stat-card.income {
             border-top: 4px solid #9b59b6;
         }
+        .stat-card.charges {
+            border-top: 4px solid #f39c12;
+        }
         .menu {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -111,6 +114,7 @@
             color: #2c3e50;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
+            position: relative;
         }
         .menu-item:hover {
             transform: translateY(-5px);
@@ -144,6 +148,22 @@
         }
         .menu-item.plans:hover {
             background: linear-gradient(135deg, #e07be8 0%, #e8455a 100%);
+        }
+        .menu-item.charges {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+        .menu-item.charges:hover {
+            background: linear-gradient(135deg, #e08e0b 0%, #d35400 100%);
+        }
+        .badge-count {
+            background: #e74c3c;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 11px;
+            margin-left: 5px;
+            display: inline-block;
         }
         .footer {
             text-align: center;
@@ -199,6 +219,10 @@
                 <div class="stat-number">{{ total_income }}</div>
                 <div class="stat-label">💰 درآمد کل ({{ currency }})</div>
             </div>
+            <div class="stat-card charges">
+                <div class="stat-number">{{ pending_charges }}</div>
+                <div class="stat-label">📋 درخواست‌های شارژ</div>
+            </div>
         </div>
         
         <!-- منو -->
@@ -208,15 +232,7 @@
                 <div class="title">مدیریت کاربران</div>
                 <div class="desc">مشاهده و شارژ کاربران</div>
             </a>
-            <!-- در بخش menu اضافه کنید -->
-            <a href="/admin/charges" class="menu-item">
-                <span class="icon">📋</span>
-                <div class="title">درخواست‌های شارژ</div>
-                <div class="desc">مدیریت درخواست‌های کاربران</div>
-                {% if pending_charges > 0 %}
-                <span class="badge-count">{{ pending_charges }}</span>
-                {% endif %}
-            </a>
+            
             <a href="/admin/links" class="menu-item">
                 <span class="icon">🔗</span>
                 <div class="title">مدیریت لینک‌ها</div>
@@ -235,11 +251,19 @@
                 <div class="desc">افزودن لینک جدید</div>
             </a>
             
-            <!-- دکمه مدیریت پلن‌ها -->
             <a href="/admin/plans" class="menu-item plans">
                 <span class="icon">📦</span>
                 <div class="title">مدیریت پلن‌ها</div>
                 <div class="desc">قیمت‌گذاری حجمی و مدت</div>
+            </a>
+            
+            <a href="/admin/charges" class="menu-item charges">
+                <span class="icon">📋</span>
+                <div class="title">درخواست‌های شارژ</div>
+                <div class="desc">مدیریت درخواست‌های کاربران</div>
+                {% if pending_charges > 0 %}
+                <span class="badge-count">{{ pending_charges }}</span>
+                {% endif %}
             </a>
             
             <a href="/admin/settings" class="menu-item settings">
