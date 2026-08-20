@@ -48,9 +48,17 @@ class Transaction(db.Model):
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+# ===== ساخت جدول‌ها در اولین درخواست =====
+def init_db():
+    with app.app_context():
+        db.create_all()
+        logger.info("✅ Database tables created successfully")
+
 # ===== توابع =====
 def get_user(telegram_id):
     with app.app_context():
+        # اطمینان از وجود جدول‌ها
+        db.create_all()
         user = User.query.filter_by(telegram_id=telegram_id).first()
         if not user:
             user = User(telegram_id=telegram_id)
@@ -91,7 +99,8 @@ def start(message):
         logger.info(f"✅ /start response sent")
         
     except Exception as e:
-        logger.error(f"❌ /start error: {str(e)}\n{traceback.format_exc()}")
+        error_msg = f"❌ /start error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
         bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
 @bot.message_handler(commands=['balance'])
@@ -108,7 +117,8 @@ def balance(message):
         logger.info(f"✅ /balance response sent")
         
     except Exception as e:
-        logger.error(f"❌ /balance error: {str(e)}\n{traceback.format_exc()}")
+        error_msg = f"❌ /balance error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
         bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
 @bot.message_handler(func=lambda message: True)
@@ -140,6 +150,8 @@ def webhook():
         update = telebot.types.Update.de_json(json_string)
         
         with app.app_context():
+            # اطمینان از وجود جدول‌ها
+            db.create_all()
             bot.process_new_updates([update])
         
         return 'OK', 200
@@ -147,13 +159,14 @@ def webhook():
         logger.error(f"❌ Webhook error: {str(e)}\n{traceback.format_exc()}")
         return f'Error: {e}', 500
 
+# ===== ساخت جدول‌ها در اولین بار =====
+with app.app_context():
+    logger.info("📦 Creating database tables...")
+    db.create_all()
+    logger.info("✅ Database tables created successfully")
+
 # ===== راه‌اندازی =====
 if __name__ == '__main__':
-    with app.app_context():
-        logger.info("📦 Creating database tables...")
-        db.create_all()
-        logger.info("✅ Database tables created successfully")
-    
     port = int(os.environ.get('PORT', 8080))
     logger.info(f"🚀 Starting on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
