@@ -48,24 +48,30 @@ class Transaction(db.Model):
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ===== ساخت جدول‌ها در اولین درخواست =====
-def init_db():
-    with app.app_context():
-        db.create_all()
-        logger.info("✅ Database tables created successfully")
+# ===== ساخت جدول‌ها =====
+with app.app_context():
+    db.create_all()
+    logger.info("✅ Database tables created successfully")
 
-# ===== توابع =====
+# ===== توابع دیتابیس =====
 def get_user(telegram_id):
-    with app.app_context():
-        # اطمینان از وجود جدول‌ها
-        db.create_all()
-        user = User.query.filter_by(telegram_id=telegram_id).first()
-        if not user:
-            user = User(telegram_id=telegram_id)
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"✅ New user: {telegram_id}")
-        return user
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user:
+        user = User(telegram_id=telegram_id)
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"✅ New user: {telegram_id}")
+    return user
+
+def get_user_balance(telegram_id):
+    user = get_user(telegram_id)
+    return user.balance
+
+def update_user_balance(telegram_id, amount):
+    user = get_user(telegram_id)
+    user.balance += amount
+    db.session.commit()
+    return user.balance
 
 # ===== ربات =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -84,6 +90,7 @@ def start(message):
         username = message.from_user.username
         logger.info(f"📩 /start from: {user_id}")
         
+        # همه عملیات دیتابیس داخل context
         with app.app_context():
             user = get_user(user_id)
             user.username = username
@@ -101,7 +108,10 @@ def start(message):
     except Exception as e:
         error_msg = f"❌ /start error: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_msg)
-        bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
+        try:
+            bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
+        except:
+            pass
 
 @bot.message_handler(commands=['balance'])
 def balance(message):
@@ -119,7 +129,10 @@ def balance(message):
     except Exception as e:
         error_msg = f"❌ /balance error: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_msg)
-        bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
+        try:
+            bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
+        except:
+            pass
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
@@ -150,20 +163,12 @@ def webhook():
         update = telebot.types.Update.de_json(json_string)
         
         with app.app_context():
-            # اطمینان از وجود جدول‌ها
-            db.create_all()
             bot.process_new_updates([update])
         
         return 'OK', 200
     except Exception as e:
         logger.error(f"❌ Webhook error: {str(e)}\n{traceback.format_exc()}")
         return f'Error: {e}', 500
-
-# ===== ساخت جدول‌ها در اولین بار =====
-with app.app_context():
-    logger.info("📦 Creating database tables...")
-    db.create_all()
-    logger.info("✅ Database tables created successfully")
 
 # ===== راه‌اندازی =====
 if __name__ == '__main__':
