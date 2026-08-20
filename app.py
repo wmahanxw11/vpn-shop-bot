@@ -24,7 +24,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ===== مدل‌ها =====
+# ============================================
+# مدل‌های دیتابیس
+# ============================================
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -69,7 +72,10 @@ class Setting(db.Model):
     value = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-# ===== ساخت جدول‌ها =====
+# ============================================
+# ساخت جدول‌ها و داده‌های اولیه
+# ============================================
+
 with app.app_context():
     db.create_all()
     
@@ -105,7 +111,10 @@ with app.app_context():
     db.session.commit()
     logger.info("✅ Database tables and default data created")
 
-# ===== توابع =====
+# ============================================
+# توابع کمکی
+# ============================================
+
 def get_setting(key, default=''):
     setting = Setting.query.filter_by(key=key).first()
     return setting.value if setting else default
@@ -184,7 +193,10 @@ def assign_link_to_user(link_id, telegram_id):
         return True
     return False
 
-# ===== ربات =====
+# ============================================
+# ربات تلگرام
+# ============================================
+
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
@@ -362,9 +374,10 @@ def echo_all(message):
         "👋 سلام! از /start استفاده کنید."
     )
 
-# ===== روت‌های پنل مدیریت =====
-
+# ============================================
 # تابع inject_theme برای اعمال تم به همه صفحات
+# ============================================
+
 @app.context_processor
 def inject_theme():
     return {
@@ -374,6 +387,10 @@ def inject_theme():
         'currency': get_setting('currency', 'تومان'),
         'bot_name': get_setting('bot_name', 'فروشگاه VPN')
     }
+
+# ============================================
+# روت‌های پنل مدیریت
+# ============================================
 
 @app.route('/')
 def index():
@@ -399,8 +416,6 @@ def admin_dashboard():
         links_count = SubscriptionLink.query.count()
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
-        currency = get_setting('currency', 'تومان')
-        bot_name = get_setting('bot_name', 'فروشگاه VPN')
         plans = Plan.query.all()
     
     return render_template(
@@ -457,7 +472,9 @@ def admin_transactions():
     plans = Plan.query.all()
     return render_template('transactions.html', transactions=transactions, plans=plans)
 
-# ===== مدیریت موجودی کاربران =====
+# ============================================
+# مدیریت موجودی کاربران (شارژ، کسر، تنظیم)
+# ============================================
 
 @app.route('/admin/charge', methods=['POST'])
 def admin_charge():
@@ -548,6 +565,10 @@ def admin_set_balance():
         return redirect(url_for('admin_users'))
     return "خطا", 400
 
+# ============================================
+# تنظیمات
+# ============================================
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 def admin_settings():
     if not session.get('logged_in'):
@@ -574,13 +595,11 @@ def admin_settings():
         
         return redirect(url_for('admin_settings', saved=1))
     
-    currency = get_setting('currency', 'تومان')
-    bot_name = get_setting('bot_name', 'فروشگاه VPN')
-    
-    return render_template(
-        'settings.html',
-        saved=request.args.get('saved')
-    )
+    return render_template('settings.html', saved=request.args.get('saved'))
+
+# ============================================
+# مدیریت پلن‌ها
+# ============================================
 
 @app.route('/admin/plans', methods=['GET', 'POST'])
 def admin_plans():
@@ -653,6 +672,10 @@ def logout():
     session.pop('logged_in', None)
     return redirect(url_for('login'))
 
+# ============================================
+# Webhook
+# ============================================
+
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':
@@ -666,6 +689,10 @@ def webhook():
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return f'Error: {e}', 500
+
+# ============================================
+# اجرای برنامه
+# ============================================
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
