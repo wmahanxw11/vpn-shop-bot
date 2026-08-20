@@ -87,7 +87,7 @@ class SupportTicket(db.Model):
     username = db.Column(db.String(100))
     subject = db.Column(db.String(200))
     message = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default='open')  # open, closed, answered
+    status = db.Column(db.String(20), default='open')
     admin_response = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -318,6 +318,7 @@ if not TOKEN:
 
 bot = telebot.TeleBot(TOKEN)
 
+# ===== منوی اصلی =====
 @bot.message_handler(commands=['start'])
 def start(message):
     try:
@@ -374,7 +375,7 @@ def handle_wallet(call):
         markup.add(
             InlineKeyboardButton("💰 شارژ حساب", callback_data="charge_wallet"),
             InlineKeyboardButton("📊 تاریخچه", callback_data="wallet_history"),
-            InlineKeyboardButton("🔙 بازگشت", callback_data="back")
+            InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")
         )
         
         bot.send_message(
@@ -487,6 +488,7 @@ def handle_confirm_charge(call):
         with app.app_context():
             charge = approve_charge(charge_id)
             if charge:
+                # افزایش موجودی کاربر
                 add_balance(user_id, charge.amount)
                 add_transaction(user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
                 new_balance = get_user(user_id).balance
@@ -556,7 +558,7 @@ def handle_buy_plans(call):
                     callback_data=f"plan_{plan.id}"
                 )
             )
-        markup.add(InlineKeyboardButton("🔙 بازگشت", callback_data="back"))
+        markup.add(InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main"))
         
         bot.send_message(
             user_id,
@@ -665,7 +667,7 @@ def handle_support(call):
         markup.add(
             InlineKeyboardButton("📝 تیکت جدید", callback_data="new_ticket"),
             InlineKeyboardButton("📋 تیکت‌های من", callback_data="my_tickets"),
-            InlineKeyboardButton("🔙 بازگشت", callback_data="back")
+            InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")
         )
         
         bot.send_message(
@@ -715,13 +717,11 @@ def process_ticket_message(message, subject):
         with app.app_context():
             ticket = create_support_ticket(user_id, username, subject, ticket_message)
             
-            # ارسال پیام به کاربر
             support_msg = get_setting('support_message', '').format(
                 ticket_id=ticket.id
             )
             bot.send_message(user_id, support_msg)
             
-            # اعلان به ادمین
             admin_id = os.environ.get('ADMIN_ID')
             if admin_id:
                 admin_notify = get_setting('admin_support_notify', '').format(
@@ -735,9 +735,8 @@ def process_ticket_message(message, subject):
                 except:
                     pass
             
-            # دکمه بازگشت
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="support"))
+            markup.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
             bot.send_message(
                 user_id,
                 "✅ تیکت شما با موفقیت ثبت شد.",
@@ -771,8 +770,9 @@ def handle_my_tickets(call):
     except Exception as e:
         logger.error(f"My tickets error: {e}")
 
-@bot.callback_query_handler(func=lambda call: call.data == "back")
-def handle_back(call):
+# ===== دکمه بازگشت به منوی اصلی =====
+@bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
+def handle_back_to_main(call):
     start(call.message)
 
 @bot.message_handler(func=lambda message: True)
@@ -891,6 +891,7 @@ def admin_charges():
     charges = get_all_charge_requests()
     return render_template('charges.html', charges=charges)
 
+# ===== روت تایید شارژ از پنل مدیریت =====
 @app.route('/admin/charge/<int:charge_id>/approve', methods=['POST'])
 def admin_charge_approve(charge_id):
     if not session.get('logged_in'):
@@ -899,6 +900,7 @@ def admin_charge_approve(charge_id):
     with app.app_context():
         charge = approve_charge(charge_id)
         if charge:
+            # افزایش موجودی کاربر
             add_balance(charge.user_id, charge.amount)
             add_transaction(charge.user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
             
