@@ -128,7 +128,9 @@ with app.app_context():
 
 def get_setting(key, default=''):
     setting = Setting.query.filter_by(key=key).first()
-    return setting.value if setting else default
+    if setting:
+        return setting.value
+    return default
 
 def update_setting(key, value):
     setting = Setting.query.filter_by(key=key).first()
@@ -239,15 +241,27 @@ def reject_charge(charge_id):
 
 def get_charge_message(amount):
     template = get_setting('charge_message', '')
-    if not template:
+    
+    # اگر تنظیمات خالی بود، مقدار پیش‌فرض
+    if not template or template == '':
         template = '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'
     
-    return template.format(
-        amount=amount,
-        bank_name=get_setting('bank_name', 'بانک ملت'),
-        card_number=get_setting('card_number', '6037-9916-1234-5678'),
-        card_holder=get_setting('card_holder', 'علی محمدی')
-    )
+    # دریافت تنظیمات
+    bank_name = get_setting('bank_name', 'بانک ملت')
+    card_number = get_setting('card_number', '6037-9916-1234-5678')
+    card_holder = get_setting('card_holder', 'علی محمدی')
+    
+    # جایگزینی متغیرها
+    try:
+        return template.format(
+            amount=amount,
+            bank_name=bank_name,
+            card_number=card_number,
+            card_holder=card_holder
+        )
+    except KeyError as e:
+        logger.error(f"Missing variable in charge message: {e}")
+        return f"💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود."
 
 # ============================================
 # ربات تلگرام
@@ -303,10 +317,9 @@ def balance(message):
         logger.error(f"Balance error: {e}")
 
 @bot.message_handler(commands=['charge'])
-def charge(message):
+def charge_command(message):
     try:
         user_id = message.from_user.id
-        
         msg = bot.send_message(
             user_id,
             "💰 مبلغ مورد نظر برای شارژ کیف پول را به تومان وارد کنید:\n"
@@ -330,16 +343,23 @@ def process_charge_amount(message):
             return
         
         with app.app_context():
+            # ایجاد درخواست شارژ
             charge = create_charge_request(user_id, amount)
             
+            # دریافت متن پیام شارژ
             charge_text = get_charge_message(amount)
+            
+            # ارسال پیام شارژ به کاربر
+            bot.send_message(user_id, charge_text, parse_mode='Markdown')
+            
+            # ارسال شماره درخواست
             bot.send_message(
                 user_id,
-                f"{charge_text}\n\n"
                 f"🆔 شماره درخواست: {charge.id}\n"
                 f"📌 پس از واریز، دکمه زیر را بزنید."
             )
             
+            # اعلان به ادمین
             admin_id = os.environ.get('ADMIN_ID')
             if admin_id:
                 notify_text = get_setting('admin_charge_notify', '').format(
@@ -353,6 +373,7 @@ def process_charge_amount(message):
                 except Exception as e:
                     logger.error(f"Failed to send admin notification: {e}")
             
+            # دکمه‌های تایید/انصراف
             markup = InlineKeyboardMarkup()
             markup.add(
                 InlineKeyboardButton("✅ پرداخت انجام شد", callback_data=f"confirm_charge_{charge.id}"),
@@ -437,7 +458,7 @@ def handle_wallet(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "charge_wallet")
 def handle_charge_wallet(call):
-    charge(call.message)
+    charge_command(call.message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "buy_plans")
 def handle_buy_plans(call):
