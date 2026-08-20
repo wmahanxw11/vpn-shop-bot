@@ -30,6 +30,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .btn-add {
             padding: 10px 20px;
@@ -39,6 +41,7 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
+            transition: background 0.3s;
         }
         .btn-add:hover {
             background: #219a52;
@@ -73,18 +76,29 @@
             cursor: pointer;
             font-size: 12px;
             margin: 2px;
+            text-decoration: none;
+            display: inline-block;
         }
         .btn-edit {
             background: #f39c12;
             color: white;
         }
+        .btn-edit:hover {
+            background: #e08e0b;
+        }
         .btn-toggle {
             background: #3498db;
             color: white;
         }
+        .btn-toggle:hover {
+            background: #2980b9;
+        }
         .btn-delete {
             background: #e74c3c;
             color: white;
+        }
+        .btn-delete:hover {
+            background: #c0392b;
         }
         .modal {
             display: none;
@@ -96,6 +110,7 @@
             background: rgba(0,0,0,0.5);
             justify-content: center;
             align-items: center;
+            z-index: 1000;
         }
         .modal-content {
             background: white;
@@ -103,6 +118,7 @@
             border-radius: 10px;
             max-width: 400px;
             width: 100%;
+            position: relative;
         }
         .modal-content input {
             width: 100%;
@@ -121,9 +137,41 @@
             cursor: pointer;
         }
         .modal-close {
-            float: left;
+            position: absolute;
+            top: 10px;
+            right: 15px;
             cursor: pointer;
-            font-size: 20px;
+            font-size: 24px;
+            color: #999;
+        }
+        .modal-close:hover {
+            color: #333;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #95a5a6;
+        }
+        .empty-state .icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            table {
+                font-size: 12px;
+            }
+            th, td {
+                padding: 8px;
+            }
+            .btn {
+                font-size: 10px;
+                padding: 3px 8px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 </head>
@@ -136,6 +184,7 @@
             <button class="btn-add" onclick="showAddModal()">➕ افزودن پلن جدید</button>
         </div>
         
+        {% if plans %}
         <table>
             <thead>
                 <tr>
@@ -158,22 +207,29 @@
                         {{ '✅ فعال' if plan.is_active else '❌ غیرفعال' }}
                     </td>
                     <td>
-                        <button class="btn btn-edit" onclick="editPlan({{ plan.id }})">✏️</button>
+                        <a href="/admin/plans/edit/{{ plan.id }}" class="btn btn-edit">✏️ ویرایش</a>
                         <form method="POST" style="display:inline;">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="plan_id" value="{{ plan.id }}">
-                            <button class="btn btn-toggle" type="submit">🔄</button>
+                            <button class="btn btn-toggle" type="submit">🔄 وضعیت</button>
                         </form>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('آیا مطمئن هستید؟')">
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('آیا از حذف این پلن مطمئن هستید؟')">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="plan_id" value="{{ plan.id }}">
-                            <button class="btn btn-delete" type="submit">🗑️</button>
+                            <button class="btn btn-delete" type="submit">🗑️ حذف</button>
                         </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <div class="empty-state">
+            <span class="icon">📭</span>
+            <p>هیچ پلنی تعریف نشده است!</p>
+            <p>برای شروع، یک پلن جدید اضافه کنید.</p>
+        </div>
+        {% endif %}
         
         <!-- مودال افزودن -->
         <div id="addModal" class="modal">
@@ -185,8 +241,8 @@
                     <input type="text" name="name" placeholder="نام پلن" required>
                     <input type="text" name="volume" placeholder="حجم (مثلاً 10GB)" required>
                     <input type="text" name="duration" placeholder="مدت (مثلاً 1 ماهه)" required>
-                    <input type="number" name="price" placeholder="قیمت" required>
-                    <button type="submit">افزودن</button>
+                    <input type="number" name="price" placeholder="قیمت" required min="0">
+                    <button type="submit">افزودن پلن</button>
                 </form>
             </div>
         </div>
@@ -199,9 +255,12 @@
         function closeAddModal() {
             document.getElementById('addModal').style.display = 'none';
         }
-        function editPlan(id) {
-            // می‌توانید با جاوااسکریپت اطلاعات رو پر کنید
-            alert('ویرایش پلن ' + id + ' - به زودی اضافه می‌شود');
+        // بستن مودال با کلیک خارج از آن
+        window.onclick = function(event) {
+            const modal = document.getElementById('addModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
         }
     </script>
 </body>

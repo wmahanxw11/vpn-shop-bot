@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایش پلن</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 550px;
+            width: 100%;
+            margin: 20px auto;
+            background: white;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 25px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .back:hover {
+            color: #2176ae;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .header h2 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin: 0;
+        }
+        .header .icon-big {
+            font-size: 32px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        label .label-icon {
+            margin-right: 6px;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+            background: #fafbfc;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+        }
+        .btn-save {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(39, 174, 96, 0.3);
+        }
+        .btn-save:active {
+            transform: translateY(0);
+        }
+        .btn-delete {
+            width: 100%;
+            padding: 12px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-delete:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(231, 76, 60, 0.3);
+        }
+        .separator {
+            border: none;
+            border-top: 2px dashed #ecf0f1;
+            margin: 25px 0;
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .info-box .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+        .info-box .info-row span:last-child {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            .header h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin/plans" class="back">← بازگشت به مدیریت پلن‌ها</a>
+        
+        <div class="header">
+            <span class="icon-big">✏️</span>
+            <h2>ویرایش پلن</h2>
+        </div>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">
+                    <span class="label-icon">📛</span> نام پلن
+                </label>
+                <input type="text" id="name" name="name" value="{{ plan.name }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="volume">
+                    <span class="label-icon">📊</span> حجم
+                </label>
+                <input type="text" id="volume" name="volume" value="{{ plan.volume }}" required placeholder="مثلاً 10GB">
+            </div>
+            
+            <div class="form-group">
+                <label for="duration">
+                    <span class="label-icon">⏱</span> مدت
+                </label>
+                <input type="text" id="duration" name="duration" value="{{ plan.duration }}" required placeholder="مثلاً 1 ماهه">
+            </div>
+            
+            <div class="form-group">
+                <label for="price">
+                    <span class="label-icon">💰</span> قیمت ({{ currency }})
+                </label>
+                <input type="number" id="price" name="price" value="{{ plan.price }}" required min="0">
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="is_active" name="is_active" {% if plan.is_active %}checked{% endif %}>
+                    <label for="is_active">✅ فعال</label>
+                </div>
+            </div>
+            
+            <hr class="separator">
+            
+            <div class="info-box">
+                <div class="info-row">
+                    <span>🆔 شناسه</span>
+                    <span>{{ plan.id }}</span>
+                </div>
+                <div class="info-row">
+                    <span>📅 تاریخ ایجاد</span>
+                    <span>{{ plan.created_at.strftime('%Y-%m-%d %H:%M') if plan.created_at else '—' }}</span>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-save">💾 ذخیره تغییرات</button>
+        </form>
+        
+        <form method="POST" action="/admin/plans/delete/{{ plan.id }}" onsubmit="return confirm('آیا از حذف این پلن مطمئن هستید؟')">
+            <button type="submit" class="btn-delete">🗑️ حذف پلن</button>
+        </form>
+    </div>
+</body>
+</html>

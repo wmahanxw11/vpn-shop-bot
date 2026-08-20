@@ -601,7 +601,53 @@ def admin_plans():
         primary=primary,
         secondary=secondary
     )
-
+@app.route('/admin/plans/edit/<int:plan_id>', methods=['GET', 'POST'])
+def admin_plan_edit(plan_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    plan = Plan.query.get_or_404(plan_id)
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    currency = get_setting('currency', 'تومان')
+    
+    if request.method == 'POST':
+        plan.name = request.form.get('name')
+        plan.volume = request.form.get('volume')
+        plan.duration = request.form.get('duration')
+        plan.price = float(request.form.get('price', 0))
+        plan.is_active = True if request.form.get('is_active') else False
+        db.session.commit()
+        return redirect(url_for('admin_plans'))
+    
+    return render_template(
+        'plan_edit.html',
+        plan=plan,
+        currency=currency,
+        theme=theme,
+        primary=primary,
+        secondary=secondary
+    )
+@app.context_processor
+def inject_theme():
+    """این تابع متغیرهای تم رو به همه صفحات اضافه می‌کنه"""
+    return {
+        'theme': get_theme(),
+        'primary_color': get_primary_color(),
+        'secondary_color': get_secondary_color(),
+        'currency': get_setting('currency', 'تومان'),
+        'bot_name': get_setting('bot_name', 'فروشگاه VPN')
+    }
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
+            session['logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        return render_template('login.html', error='رمز اشتباه است!')
+    return render_template('login.html')
 @app.route('/admin/logout')
 def logout():
     session.pop('logged_in', None)

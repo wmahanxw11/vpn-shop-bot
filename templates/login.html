@@ -2,30 +2,139 @@
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ورود به پنل مدیریت</title>
     <style>
-        body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
-        .login-container{background:white;padding:40px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.3);width:100%;max-width:400px}
-        h1{text-align:center;color:#333;margin-bottom:30px}
-        .form-group{margin-bottom:20px}
-        label{display:block;margin-bottom:5px;color:#555}
-        input[type="password"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:16px}
-        button{width:100%;padding:12px;background:#667eea;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer}
-        button:hover{background:#764ba2}
-        .error{color:#e74c3c;text-align:center;margin-bottom:15px}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, {{ primary_color }} 0%, {{ secondary_color }} 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo .icon {
+            font-size: 48px;
+            display: block;
+        }
+        .logo h1 {
+            color: #333;
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        .logo p {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            background: #fafbfc;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: {{ primary_color }};
+            background: white;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: {{ primary_color }};
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: {{ secondary_color }};
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #fde8e8;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #95a5a6;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h1>🔐 پنل مدیریت</h1>
-        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <div class="logo">
+            <span class="icon">🔐</span>
+            <h1>پنل مدیریت</h1>
+            <p>{{ bot_name }}</p>
+        </div>
+        
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        
         <form method="POST">
             <div class="form-group">
                 <label for="password">رمز عبور</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required placeholder="رمز عبور خود را وارد کنید">
             </div>
-            <button type="submit">ورود</button>
+            <button type="submit">ورود به پنل</button>
         </form>
+        
+        <div class="footer">
+            🤖 {{ bot_name }} | v2.0
+        </div>
     </div>
 </body>
 </html>
