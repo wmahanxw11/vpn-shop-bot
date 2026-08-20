@@ -7,7 +7,6 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime
 import traceback
-import json
 
 load_dotenv()
 
@@ -35,7 +34,6 @@ class User(db.Model):
     username = db.Column(db.String(100))
     balance = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    charge_requests = db.relationship('ChargeRequest', backref='user', lazy=True)
 
 class SubscriptionLink(db.Model):
     __tablename__ = 'subscription_links'
@@ -76,7 +74,7 @@ class Setting(db.Model):
 class ChargeRequest(db.Model):
     __tablename__ = 'charge_requests'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.telegram_id'), nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -241,6 +239,9 @@ def reject_charge(charge_id):
 
 def get_charge_message(amount):
     template = get_setting('charge_message', '')
+    if not template:
+        template = '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'
+    
     return template.format(
         amount=amount,
         bank_name=get_setting('bank_name', 'بانک ملت'),
@@ -713,8 +714,8 @@ def admin_charge_reject(charge_id):
 # مدیریت موجودی کاربران
 # ============================================
 
-@app.route('/admin/charge', methods=['POST'])
-def admin_charge():
+@app.route('/admin/charge_balance', methods=['POST'])
+def admin_charge_balance():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
@@ -847,7 +848,30 @@ def admin_settings():
         
         return redirect(url_for('admin_settings', saved=1))
     
-    return render_template('settings.html', saved=request.args.get('saved'))
+    card_number = get_setting('card_number', '6037-9916-1234-5678')
+    card_holder = get_setting('card_holder', 'علی محمدی')
+    bank_name = get_setting('bank_name', 'بانک ملت')
+    charge_message = get_setting('charge_message', '')
+    admin_charge_notify = get_setting('admin_charge_notify', '')
+    
+    users_count = User.query.count()
+    links_count = SubscriptionLink.query.count()
+    pending_charges = ChargeRequest.query.filter_by(status='pending').count()
+    total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
+    
+    return render_template(
+        'settings.html',
+        saved=request.args.get('saved'),
+        card_number=card_number,
+        card_holder=card_holder,
+        bank_name=bank_name,
+        charge_message=charge_message,
+        admin_charge_notify=admin_charge_notify,
+        users_count=users_count,
+        links_count=links_count,
+        pending_charges=pending_charges,
+        total_income=total_income
+    )
 
 # ============================================
 # مدیریت پلن‌ها

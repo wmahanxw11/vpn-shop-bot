@@ -21,7 +21,7 @@
             justify-content: center;
         }
         .container {
-            max-width: 650px;
+            max-width: 700px;
             width: 100%;
             margin: 20px auto;
             background: white;
@@ -149,6 +149,11 @@
         .alert-success .alert-icon {
             font-size: 20px;
         }
+        .alert-error {
+            background: #fde8e8;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
         .separator {
             border: none;
             border-top: 2px dashed #ecf0f1;
@@ -162,6 +167,7 @@
             border: 2px dashed #ddd;
             margin-top: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .theme-preview .preview-color {
             width: 40px;
@@ -179,6 +185,10 @@
             padding: 8px 0;
             color: #7f8c8d;
             font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-row:last-child {
+            border-bottom: none;
         }
         .info-row span:last-child {
             color: #2c3e50;
@@ -191,6 +201,20 @@
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+        .section-title .title-icon {
+            font-size: 24px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-pending {
+            background: #f39c12;
+            color: white;
         }
         @media (max-width: 480px) {
             .container {
@@ -218,30 +242,45 @@
         </div>
         {% endif %}
         
+        {% if error %}
+        <div class="alert alert-error">
+            <span class="alert-icon">❌</span>
+            {{ error }}
+        </div>
+        {% endif %}
+        
         <form method="POST">
+            <!-- ========================================== -->
             <!-- تنظیمات عمومی -->
-            <div class="section-title">🤖 تنظیمات عمومی</div>
+            <!-- ========================================== -->
+            <div class="section-title">
+                <span class="title-icon">🤖</span> تنظیمات عمومی
+            </div>
             
             <div class="form-group">
                 <label for="currency">
                     <span class="label-icon">💵</span> واحد پول
                 </label>
-                <input type="text" id="currency" name="currency" value="{{ currency }}" required>
-                <div class="input-hint">واحد پولی که در ربات نمایش داده میشود</div>
+                <input type="text" id="currency" name="currency" value="{{ currency or 'تومان' }}" required>
+                <div class="input-hint">واحد پولی که در ربات نمایش داده میشود (مثال: تومان، ریال، دلار)</div>
             </div>
             
             <div class="form-group">
                 <label for="bot_name">
                     <span class="label-icon">🤖</span> نام ربات
                 </label>
-                <input type="text" id="bot_name" name="bot_name" value="{{ bot_name }}" required>
+                <input type="text" id="bot_name" name="bot_name" value="{{ bot_name or 'فروشگاه VPN' }}" required>
                 <div class="input-hint">نامی که در پیام خوش‌آمدگویی نمایش داده میشود</div>
             </div>
             
             <hr class="separator">
             
-            <!-- تنظیمات تم -->
-            <div class="section-title">🎨 تنظیمات ظاهری</div>
+            <!-- ========================================== -->
+            <!-- تنظیمات ظاهری -->
+            <!-- ========================================== -->
+            <div class="section-title">
+                <span class="title-icon">🎨</span> تنظیمات ظاهری
+            </div>
             
             <div class="form-group">
                 <label for="theme">
@@ -263,34 +302,38 @@
                 <label for="primary_color">
                     <span class="label-icon">🎨</span> رنگ اصلی
                 </label>
-                <input type="color" id="primary_color" name="primary_color" value="{{ primary_color }}">
-                <div class="input-hint">رنگ اصلی پنل مدیریت</div>
+                <input type="color" id="primary_color" name="primary_color" value="{{ primary_color or '#667eea' }}">
+                <div class="input-hint">رنگ اصلی پنل مدیریت (مثلاً برای دکمه‌ها و هدر)</div>
             </div>
             
             <div class="form-group">
                 <label for="secondary_color">
                     <span class="label-icon">🎨</span> رنگ ثانویه
                 </label>
-                <input type="color" id="secondary_color" name="secondary_color" value="{{ secondary_color }}">
-                <div class="input-hint">رنگ ثانویه پنل مدیریت</div>
+                <input type="color" id="secondary_color" name="secondary_color" value="{{ secondary_color or '#764ba2' }}">
+                <div class="input-hint">رنگ ثانویه پنل مدیریت (برای گرادیان‌ها و هاور)</div>
             </div>
             
             <div class="theme-preview">
-                <div class="preview-color" style="background: {{ primary_color }}" id="previewPrimary"></div>
-                <div class="preview-color" style="background: {{ secondary_color }}" id="previewSecondary"></div>
-                <div class="preview-text">پیش‌نمایش رنگ‌ها</div>
+                <div class="preview-color" style="background: {{ primary_color or '#667eea' }}" id="previewPrimary"></div>
+                <div class="preview-color" style="background: {{ secondary_color or '#764ba2' }}" id="previewSecondary"></div>
+                <div class="preview-text">پیش‌نمایش رنگ‌های انتخاب شده</div>
             </div>
             
             <hr class="separator">
             
+            <!-- ========================================== -->
             <!-- تنظیمات پرداخت -->
-            <div class="section-title">💳 تنظیمات پرداخت</div>
+            <!-- ========================================== -->
+            <div class="section-title">
+                <span class="title-icon">💳</span> تنظیمات پرداخت
+            </div>
             
             <div class="form-group">
                 <label for="card_number">
                     <span class="label-icon">💳</span> شماره کارت
                 </label>
-                <input type="text" id="card_number" name="card_number" value="{{ card_number or '6037-9916-1234-5678' }}">
+                <input type="text" id="card_number" name="card_number" value="{{ card_number or '6037-9916-1234-5678' }}" placeholder="مثال: 6037-9916-1234-5678">
                 <div class="input-hint">شماره کارتی که کاربران باید به آن واریز کنند</div>
             </div>
             
@@ -298,7 +341,7 @@
                 <label for="card_holder">
                     <span class="label-icon">👤</span> صاحب حساب
                 </label>
-                <input type="text" id="card_holder" name="card_holder" value="{{ card_holder or 'علی محمدی' }}">
+                <input type="text" id="card_holder" name="card_holder" value="{{ card_holder or 'علی محمدی' }}" placeholder="نام صاحب حساب">
                 <div class="input-hint">نام صاحب حساب کارت</div>
             </div>
             
@@ -306,8 +349,8 @@
                 <label for="bank_name">
                     <span class="label-icon">🏦</span> نام بانک
                 </label>
-                <input type="text" id="bank_name" name="bank_name" value="{{ bank_name or 'بانک ملت' }}">
-                <div class="input-hint">نام بانک</div>
+                <input type="text" id="bank_name" name="bank_name" value="{{ bank_name or 'بانک ملت' }}" placeholder="نام بانک">
+                <div class="input-hint">نام بانک صاحب حساب</div>
             </div>
             
             <div class="form-group">
@@ -315,7 +358,13 @@
                     <span class="label-icon">📝</span> متن پیام شارژ به کاربر
                 </label>
                 <textarea id="charge_message" name="charge_message" rows="6">{{ charge_message or '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.' }}</textarea>
-                <div class="input-hint">از {amount} برای مبلغ، {bank_name} برای نام بانک، {card_number} برای شماره کارت و {card_holder} برای صاحب حساب استفاده کنید.</div>
+                <div class="input-hint">
+                    <strong>متغیرهای قابل استفاده:</strong><br>
+                    {amount} - مبلغ شارژ<br>
+                    {bank_name} - نام بانک<br>
+                    {card_number} - شماره کارت<br>
+                    {card_holder} - صاحب حساب
+                </div>
             </div>
             
             <div class="form-group">
@@ -323,13 +372,24 @@
                     <span class="label-icon">📱</span> متن اعلان به ادمین
                 </label>
                 <textarea id="admin_charge_notify" name="admin_charge_notify" rows="4">{{ admin_charge_notify or '✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.' }}</textarea>
-                <div class="input-hint">از {username}، {amount}، {user_id} و {date} استفاده کنید.</div>
+                <div class="input-hint">
+                    <strong>متغیرهای قابل استفاده:</strong><br>
+                    {username} - نام کاربری<br>
+                    {amount} - مبلغ شارژ<br>
+                    {user_id} - آیدی تلگرام کاربر<br>
+                    {date} - تاریخ و زمان
+                </div>
             </div>
             
             <hr class="separator">
             
+            <!-- ========================================== -->
             <!-- آمار -->
-            <div class="section-title">📊 آمار</div>
+            <!-- ========================================== -->
+            <div class="section-title">
+                <span class="title-icon">📊</span> آمار
+            </div>
+            
             <div class="info-row">
                 <span>👥 تعداد کاربران</span>
                 <span>{{ users_count if users_count is defined else '—' }}</span>
@@ -340,7 +400,21 @@
             </div>
             <div class="info-row">
                 <span>📋 درخواست‌های در انتظار</span>
-                <span>{{ pending_charges if pending_charges is defined else '—' }}</span>
+                <span>
+                    {% if pending_charges is defined %}
+                        {% if pending_charges > 0 %}
+                            <span class="badge badge-pending">{{ pending_charges }}</span>
+                        {% else %}
+                            {{ pending_charges }}
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span>💰 کل درآمد</span>
+                <span>{{ total_income if total_income is defined else '—' }}</span>
             </div>
             
             <button type="submit" class="btn-save">💾 ذخیره تنظیمات</button>
@@ -354,6 +428,14 @@
         });
         document.getElementById('secondary_color').addEventListener('input', function() {
             document.getElementById('previewSecondary').style.background = this.value;
+        });
+        
+        // پیش‌نمایش اولیه
+        document.addEventListener('DOMContentLoaded', function() {
+            const primary = document.getElementById('primary_color').value;
+            const secondary = document.getElementById('secondary_color').value;
+            document.getElementById('previewPrimary').style.background = primary;
+            document.getElementById('previewSecondary').style.background = secondary;
         });
     </script>
 </body>
