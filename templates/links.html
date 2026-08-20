@@ -2,47 +2,16 @@
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مدیریت لینک‌ها</title>
     <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 20px;
-            background: #f5f6fa;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .back {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #3498db;
-            text-decoration: none;
-        }
-        table {
-            width: 100%;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        th {
-            background: #2c3e50;
-            color: white;
-            padding: 12px;
-            text-align: right;
-        }
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-        .used {
-            color: #e74c3c;
-        }
-        .unused {
-            color: #27ae60;
-        }
+        body{font-family:'Segoe UI',sans-serif;margin:20px;background:#f5f6fa}
+        .container{max-width:1200px;margin:0 auto}
+        .back{display:inline-block;margin-bottom:20px;color:#3498db;text-decoration:none}
+        table{width:100%;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+        th{background:#2c3e50;color:white;padding:12px;text-align:right}
+        td{padding:12px;border-bottom:1px solid #ecf0f1}
+        .used{color:#e74c3c}
+        .unused{color:#27ae60}
     </style>
 </head>
 <body>
@@ -50,22 +19,12 @@
         <a href="/admin" class="back">← بازگشت به داشبورد</a>
         <h2>🔗 مدیریت لینک‌ها</h2>
         <table>
-            <thead>
-                <tr>
-                    <th>لینک</th>
-                    <th>وضعیت</th>
-                    <th>استفاده‌کننده</th>
-                    <th>تاریخ استفاده</th>
-                    <th>تاریخ افزودن</th>
-                </tr>
-            </thead>
+            <thead><tr><th>لینک</th><th>وضعیت</th><th>استفاده‌کننده</th><th>تاریخ استفاده</th><th>تاریخ افزودن</th></tr></thead>
             <tbody>
                 {% for link in links %}
                 <tr>
                     <td><code>{{ link.link[:50] }}...</code></td>
-                    <td class="{{ 'used' if link.is_used else 'unused' }}">
-                        {{ '✅ استفاده شده' if link.is_used else '⏳ استفاده نشده' }}
-                    </td>
+                    <td class="{{ 'used' if link.is_used else 'unused' }}">{{ '✅ استفاده شده' if link.is_used else '⏳ استفاده نشده' }}</td>
                     <td>{{ link.used_by or '-' }}</td>
                     <td>{{ link.used_at.strftime('%Y-%m-%d %H:%M') if link.used_at else '-' }}</td>
                     <td>{{ link.created_at.strftime('%Y-%m-%d %H:%M') }}</td>

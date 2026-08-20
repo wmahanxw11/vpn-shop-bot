@@ -2,47 +2,16 @@
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تراکنش‌ها</title>
     <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 20px;
-            background: #f5f6fa;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .back {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #3498db;
-            text-decoration: none;
-        }
-        table {
-            width: 100%;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        th {
-            background: #2c3e50;
-            color: white;
-            padding: 12px;
-            text-align: right;
-        }
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-        .positive {
-            color: #27ae60;
-        }
-        .negative {
-            color: #e74c3c;
-        }
+        body{font-family:'Segoe UI',sans-serif;margin:20px;background:#f5f6fa}
+        .container{max-width:1200px;margin:0 auto}
+        .back{display:inline-block;margin-bottom:20px;color:#3498db;text-decoration:none}
+        table{width:100%;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+        th{background:#2c3e50;color:white;padding:12px;text-align:right}
+        td{padding:12px;border-bottom:1px solid #ecf0f1}
+        .positive{color:#27ae60}
+        .negative{color:#e74c3c}
     </style>
 </head>
 <body>
@@ -50,21 +19,12 @@
         <a href="/admin" class="back">← بازگشت به داشبورد</a>
         <h2>💰 تاریخچه تراکنش‌ها</h2>
         <table>
-            <thead>
-                <tr>
-                    <th>کاربر</th>
-                    <th>مبلغ (تومان)</th>
-                    <th>شرح</th>
-                    <th>تاریخ</th>
-                </tr>
-            </thead>
+            <thead><tr><th>کاربر</th><th>مبلغ (تومان)</th><th>شرح</th><th>تاریخ</th></tr></thead>
             <tbody>
                 {% for transaction in transactions %}
                 <tr>
                     <td>{{ transaction.user_id }}</td>
-                    <td class="{{ 'positive' if transaction.amount > 0 else 'negative' }}">
-                        {{ transaction.amount }}
-                    </td>
+                    <td class="{{ 'positive' if transaction.amount > 0 else 'negative' }}">{{ transaction.amount }}</td>
                     <td>{{ transaction.description }}</td>
                     <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 </tr>

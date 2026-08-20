@@ -2,60 +2,17 @@
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مدیریت کاربران</title>
     <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 20px;
-            background: #f5f6fa;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .back {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #3498db;
-            text-decoration: none;
-        }
-        table {
-            width: 100%;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        th {
-            background: #2c3e50;
-            color: white;
-            padding: 12px;
-            text-align: right;
-        }
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-        .charge-form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .charge-form input {
-            padding: 5px 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            width: 100px;
-        }
-        .charge-form button {
-            padding: 5px 15px;
-            background: #27ae60;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+        body{font-family:'Segoe UI',sans-serif;margin:20px;background:#f5f6fa}
+        .container{max-width:1200px;margin:0 auto}
+        .back{display:inline-block;margin-bottom:20px;color:#3498db;text-decoration:none}
+        table{width:100%;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+        th{background:#2c3e50;color:white;padding:12px;text-align:right}
+        td{padding:12px;border-bottom:1px solid #ecf0f1}
+        .charge-form{display:flex;gap:10px;align-items:center}
+        .charge-form input{padding:5px 10px;border:1px solid #ddd;border-radius:5px;width:100px}
+        .charge-form button{padding:5px 15px;background:#27ae60;color:white;border:none;border-radius:5px;cursor:pointer}
     </style>
 </head>
 <body>
@@ -63,15 +20,7 @@
         <a href="/admin" class="back">← بازگشت به داشبورد</a>
         <h2>👥 لیست کاربران</h2>
         <table>
-            <thead>
-                <tr>
-                    <th>آیدی تلگرام</th>
-                    <th>یوزرنیم</th>
-                    <th>موجودی (تومان)</th>
-                    <th>تاریخ ثبت‌نام</th>
-                    <th>عملیات</th>
-                </tr>
-            </thead>
+            <thead><tr><th>آیدی تلگرام</th><th>یوزرنیم</th><th>موجودی (تومان)</th><th>تاریخ ثبت‌نام</th><th>عملیات</th></tr></thead>
             <tbody>
                 {% for user in users %}
                 <tr>
