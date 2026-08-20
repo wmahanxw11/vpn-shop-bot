@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تنظیمات</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            margin: 20px auto;
+            background: white;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 25px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .back:hover {
+            color: #2176ae;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .header h2 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin: 0;
+        }
+        .header .icon-big {
+            font-size: 32px;
+        }
+        .form-group {
+            margin-bottom: 22px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        label .label-icon {
+            margin-right: 6px;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e8ecf1;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+            background: #fafbfc;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+        .input-hint {
+            font-size: 12px;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+        .btn-save {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(39, 174, 96, 0.3);
+        }
+        .btn-save:active {
+            transform: translateY(0);
+        }
+        .alert {
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-success {
+            background: #e8f8f0;
+            color: #1a7a4a;
+            border: 1px solid #b8e6d0;
+        }
+        .alert-success .alert-icon {
+            font-size: 20px;
+        }
+        .separator {
+            border: none;
+            border-top: 2px dashed #ecf0f1;
+            margin: 25px 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: #7f8c8d;
+            font-size: 13px;
+        }
+        .info-row span:last-child {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            .header h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin" class="back">← بازگشت به داشبورد</a>
+        
+        <div class="header">
+            <span class="icon-big">⚙️</span>
+            <h2>تنظیمات ربات</h2>
+        </div>
+        
+        {% if request.args.get('saved') %}
+        <div class="alert alert-success">
+            <span class="alert-icon">✅</span>
+            تنظیمات با موفقیت ذخیره شد!
+        </div>
+        {% endif %}
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="price">
+                    <span class="label-icon">💰</span> قیمت هر اشتراک
+                </label>
+                <input type="number" id="price" name="price" value="{{ price }}" required min="100" step="100">
+                <div class="input-hint">حداقل ۱۰۰ تومان</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="currency">
+                    <span class="label-icon">💵</span> واحد پول
+                </label>
+                <input type="text" id="currency" name="currency" value="{{ currency }}" required placeholder="مثال: تومان، ریال، دلار">
+                <div class="input-hint">واحد پولی که در ربات نمایش داده میشود</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="bot_name">
+                    <span class="label-icon">🤖</span> نام ربات
+                </label>
+                <input type="text" id="bot_name" name="bot_name" value="{{ bot_name }}" required placeholder="نام ربات">
+                <div class="input-hint">نامی که در پیام خوش‌آمدگویی نمایش داده میشود</div>
+            </div>
+            
+            <hr class="separator">
+            
+            <div class="info-row">
+                <span>📊 تعداد کاربران</span>
+                <span>{{ users_count if users_count is defined else '—' }}</span>
+            </div>
+            <div class="info-row">
+                <span>🔗 کل لینک‌ها</span>
+                <span>{{ links_count if links_count is defined else '—' }}</span>
+            </div>
+            
+            <button type="submit" class="btn-save">💾 ذخیره تنظیمات</button>
+        </form>
+    </div>
+</body>
+</html>

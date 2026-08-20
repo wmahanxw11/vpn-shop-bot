@@ -49,12 +49,48 @@ class Transaction(db.Model):
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Setting(db.Model):
+    __tablename__ = 'settings'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(500), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # ===== ساخت جدول‌ها =====
 with app.app_context():
     db.create_all()
+    # تنظیمات پیش‌فرض
+    if not Setting.query.filter_by(key='price').first():
+        default_settings = [
+            Setting(key='price', value='10000'),
+            Setting(key='currency', value='تومان'),
+            Setting(key='admin_username', value='admin'),
+            Setting(key='bot_name', value='فروشگاه VPN')
+        ]
+        db.session.add_all(default_settings)
+        db.session.commit()
+        logger.info("✅ Default settings created")
     logger.info("✅ Database tables created")
 
 # ===== توابع دیتابیس =====
+def get_setting(key, default=''):
+    setting = Setting.query.filter_by(key=key).first()
+    return setting.value if setting else default
+
+def update_setting(key, value):
+    setting = Setting.query.filter_by(key=key).first()
+    if setting:
+        setting.value = value
+        setting.updated_at = datetime.utcnow()
+    else:
+        setting = Setting(key=key, value=value)
+        db.session.add(setting)
+    db.session.commit()
+    return setting
+
+def get_price():
+    return int(get_setting('price', '10000'))
+
 def get_user(telegram_id):
     user = User.query.filter_by(telegram_id=telegram_id).first()
     if not user:
@@ -104,8 +140,6 @@ def assign_link_to_user(link_id, telegram_id):
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
-PRICE = 10000  # قیمت هر اشتراک
-
 @bot.message_handler(commands=['start'])
 def start(message):
     try:
@@ -116,6 +150,9 @@ def start(message):
             user.username = username
             db.session.commit()
             balance = user.balance
+            price = get_price()
+            currency = get_setting('currency', 'تومان')
+            bot_name = get_setting('bot_name', 'فروشگاه VPN')
         
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -126,8 +163,9 @@ def start(message):
         
         bot.send_message(
             user_id,
-            f"👋 به ربات فروش VPN خوش آمدید!\n"
-            f"💰 موجودی: {balance} تومان",
+            f"👋 به {bot_name} خوش آمدید!\n"
+            f"💰 موجودی: {balance} {currency}\n"
+            f"💳 قیمت هر اشتراک: {price} {currency}",
             reply_markup=markup
         )
     except Exception as e:
@@ -140,7 +178,8 @@ def handle_wallet(call):
         with app.app_context():
             user = get_user(user_id)
             balance = user.balance
-        bot.send_message(user_id, f"💰 موجودی شما: {balance} تومان")
+            currency = get_setting('currency', 'تومان')
+        bot.send_message(user_id, f"💰 موجودی شما: {balance} {currency}")
     except Exception as e:
         logger.error(f"Wallet error: {e}")
 
@@ -151,13 +190,15 @@ def handle_buy(call):
         with app.app_context():
             user = get_user(user_id)
             balance = user.balance
+            price = get_price()
+            currency = get_setting('currency', 'تومان')
             
-            if balance < PRICE:
+            if balance < price:
                 bot.send_message(
                     user_id,
                     f"❌ موجودی کافی نیست!\n"
-                    f"💰 موجودی: {balance} تومان\n"
-                    f"💳 قیمت: {PRICE} تومان"
+                    f"💰 موجودی: {balance} {currency}\n"
+                    f"💳 قیمت: {price} {currency}"
                 )
                 return
             
@@ -171,15 +212,15 @@ def handle_buy(call):
                 return
             
             if assign_link_to_user(link.id, user_id):
-                if deduct_balance(user_id, PRICE):
-                    add_transaction(user_id, -PRICE, "خرید اشتراک")
+                if deduct_balance(user_id, price):
+                    add_transaction(user_id, -price, "خرید اشتراک")
                     new_balance = get_user(user_id).balance
                     
                     bot.send_message(
                         user_id,
                         f"✅ اشتراک خریداری شد!\n\n"
                         f"🔗 لینک:\n`{link.link}`\n\n"
-                        f"💰 موجودی جدید: {new_balance} تومان",
+                        f"💰 موجودی جدید: {new_balance} {currency}",
                         parse_mode='Markdown'
                     )
     except Exception as e:
@@ -236,6 +277,9 @@ def admin_dashboard():
         links_count = SubscriptionLink.query.count()
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
+        price = get_price()
+        currency = get_setting('currency', 'تومان')
+        bot_name = get_setting('bot_name', 'فروشگاه VPN')
     
     return render_template(
         'admin.html',
@@ -243,7 +287,10 @@ def admin_dashboard():
         links_count=links_count,
         used_links=used_links,
         unused_links=links_count - used_links,
-        total_income=total_income
+        total_income=total_income,
+        price=price,
+        currency=currency,
+        bot_name=bot_name
     )
 
 @app.route('/admin/users')
@@ -293,17 +340,49 @@ def admin_charge():
             add_balance(int(telegram_id), amount)
             add_transaction(int(telegram_id), amount, "شارژ توسط ادمین")
         
-        # اطلاع به کاربر
         try:
             bot.send_message(
                 int(telegram_id),
-                f"💰 کیف پول شما به مبلغ {amount} تومان شارژ شد!"
+                f"💰 کیف پول شما به مبلغ {amount} {get_setting('currency', 'تومان')} شارژ شد!"
             )
         except:
             pass
         
         return redirect(url_for('admin_users'))
     return "خطا", 400
+
+# ===== صفحه تنظیمات =====
+@app.route('/admin/settings', methods=['GET', 'POST'])
+def admin_settings():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        price = request.form.get('price')
+        currency = request.form.get('currency')
+        bot_name = request.form.get('bot_name')
+        
+        with app.app_context():
+            if price:
+                update_setting('price', price)
+            if currency:
+                update_setting('currency', currency)
+            if bot_name:
+                update_setting('bot_name', bot_name)
+        
+        return redirect(url_for('admin_settings'))
+    
+    with app.app_context():
+        price = get_setting('price', '10000')
+        currency = get_setting('currency', 'تومان')
+        bot_name = get_setting('bot_name', 'فروشگاه VPN')
+    
+    return render_template(
+        'settings.html',
+        price=price,
+        currency=currency,
+        bot_name=bot_name
+    )
 
 @app.route('/admin/logout')
 def logout():
