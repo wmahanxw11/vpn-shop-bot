@@ -138,6 +138,13 @@
         .menu-item.settings:hover {
             background: linear-gradient(135deg, #5a6fd6 0%, #6a3f9a 100%);
         }
+        .menu-item.plans {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .menu-item.plans:hover {
+            background: linear-gradient(135deg, #e07be8 0%, #e8455a 100%);
+        }
         .footer {
             text-align: center;
             margin-top: 30px;
@@ -165,7 +172,7 @@
         <div class="header">
             <div>
                 <h1>📊 داشبورد مدیریت</h1>
-                <div class="bot-name">🤖 {{ bot_name }} | 💰 {{ price }} {{ currency }}</div>
+                <div class="bot-name">🤖 {{ bot_name }} | 💰 {{ currency }}</div>
             </div>
             <a href="/admin/logout">🚪 خروج</a>
         </div>
@@ -192,10 +199,6 @@
                 <div class="stat-number">{{ total_income }}</div>
                 <div class="stat-label">💰 درآمد کل ({{ currency }})</div>
             </div>
-            <div class="stat-card price">
-                <div class="stat-number">{{ price }}</div>
-                <div class="stat-label">💳 قیمت هر اشتراک ({{ currency }})</div>
-            </div>
         </div>
         
         <!-- منو -->
@@ -205,25 +208,36 @@
                 <div class="title">مدیریت کاربران</div>
                 <div class="desc">مشاهده و شارژ کاربران</div>
             </a>
+            
             <a href="/admin/links" class="menu-item">
                 <span class="icon">🔗</span>
                 <div class="title">مدیریت لینک‌ها</div>
                 <div class="desc">مشاهده و مدیریت لینک‌ها</div>
             </a>
+            
             <a href="/admin/transactions" class="menu-item">
                 <span class="icon">💰</span>
                 <div class="title">تراکنش‌ها</div>
                 <div class="desc">تاریخچه تراکنش‌ها</div>
             </a>
+            
             <a href="/admin/add_link" class="menu-item">
                 <span class="icon">➕</span>
                 <div class="title">افزودن لینک</div>
                 <div class="desc">افزودن لینک جدید</div>
             </a>
+            
+            <!-- دکمه مدیریت پلن‌ها -->
+            <a href="/admin/plans" class="menu-item plans">
+                <span class="icon">📦</span>
+                <div class="title">مدیریت پلن‌ها</div>
+                <div class="desc">قیمت‌گذاری حجمی و مدت</div>
+            </a>
+            
             <a href="/admin/settings" class="menu-item settings">
                 <span class="icon">⚙️</span>
                 <div class="title">تنظیمات</div>
-                <div class="desc">قیمت، واحد پول و ...</div>
+                <div class="desc">واحد پول، تم و ...</div>
             </a>
         </div>
         

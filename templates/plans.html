@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت پلن‌ها</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 20px;
+            background: #f5f6fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .btn-add {
+            padding: 10px 20px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-add:hover {
+            background: #219a52;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+            padding: 12px;
+            text-align: right;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .active {
+            color: #27ae60;
+        }
+        .inactive {
+            color: #e74c3c;
+        }
+        .btn {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .btn-edit {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-toggle {
+            background: #3498db;
+            color: white;
+        }
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            width: 100%;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .modal-content button {
+            width: 100%;
+            padding: 10px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .modal-close {
+            float: left;
+            cursor: pointer;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin" class="back">← بازگشت به داشبورد</a>
+        
+        <div class="header">
+            <h2>📦 مدیریت پلن‌ها</h2>
+            <button class="btn-add" onclick="showAddModal()">➕ افزودن پلن جدید</button>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>نام</th>
+                    <th>حجم</th>
+                    <th>مدت</th>
+                    <th>قیمت</th>
+                    <th>وضعیت</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plans %}
+                <tr>
+                    <td>{{ plan.name }}</td>
+                    <td>{{ plan.volume }}</td>
+                    <td>{{ plan.duration }}</td>
+                    <td>{{ plan.price }} {{ currency }}</td>
+                    <td class="{{ 'active' if plan.is_active else 'inactive' }}">
+                        {{ '✅ فعال' if plan.is_active else '❌ غیرفعال' }}
+                    </td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editPlan({{ plan.id }})">✏️</button>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="toggle">
+                            <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                            <button class="btn btn-toggle" type="submit">🔄</button>
+                        </form>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('آیا مطمئن هستید؟')">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                            <button class="btn btn-delete" type="submit">🗑️</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- مودال افزودن -->
+        <div id="addModal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close" onclick="closeAddModal()">✕</span>
+                <h3>➕ افزودن پلن جدید</h3>
+                <form method="POST">
+                    <input type="hidden" name="action" value="add">
+                    <input type="text" name="name" placeholder="نام پلن" required>
+                    <input type="text" name="volume" placeholder="حجم (مثلاً 10GB)" required>
+                    <input type="text" name="duration" placeholder="مدت (مثلاً 1 ماهه)" required>
+                    <input type="number" name="price" placeholder="قیمت" required>
+                    <button type="submit">افزودن</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showAddModal() {
+            document.getElementById('addModal').style.display = 'flex';
+        }
+        function closeAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+        }
+        function editPlan(id) {
+            // می‌توانید با جاوااسکریپت اطلاعات رو پر کنید
+            alert('ویرایش پلن ' + id + ' - به زودی اضافه می‌شود');
+        }
+    </script>
+</body>
+</html>

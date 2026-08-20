@@ -7,6 +7,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime
 import traceback
+import json
 
 load_dotenv()
 
@@ -36,6 +37,7 @@ class SubscriptionLink(db.Model):
     __tablename__ = 'subscription_links'
     id = db.Column(db.Integer, primary_key=True)
     link = db.Column(db.String(500), unique=True, nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=True)
     is_used = db.Column(db.Boolean, default=False)
     used_by = db.Column(db.Integer, nullable=True)
     used_at = db.Column(db.DateTime, nullable=True)
@@ -45,34 +47,65 @@ class Transaction(db.Model):
     __tablename__ = 'transactions'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=True)
     amount = db.Column(db.Float, nullable=False)
     description = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Plan(db.Model):
+    __tablename__ = 'plans'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    volume = db.Column(db.String(50), nullable=False)  # مثلاً 10GB, 50GB, 100GB
+    duration = db.Column(db.String(50), nullable=False)  # مثلاً 1 ماهه, 3 ماهه
+    price = db.Column(db.Float, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Setting(db.Model):
     __tablename__ = 'settings'
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
-    value = db.Column(db.String(500), nullable=False)
+    value = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # ===== ساخت جدول‌ها =====
 with app.app_context():
     db.create_all()
+    
     # تنظیمات پیش‌فرض
-    if not Setting.query.filter_by(key='price').first():
-        default_settings = [
-            Setting(key='price', value='10000'),
-            Setting(key='currency', value='تومان'),
-            Setting(key='admin_username', value='admin'),
-            Setting(key='bot_name', value='فروشگاه VPN')
-        ]
-        db.session.add_all(default_settings)
-        db.session.commit()
-        logger.info("✅ Default settings created")
-    logger.info("✅ Database tables created")
+    default_settings = [
+        Setting(key='currency', value='تومان'),
+        Setting(key='bot_name', value='فروشگاه VPN'),
+        Setting(key='theme', value='default'),
+        Setting(key='primary_color', value='#667eea'),
+        Setting(key='secondary_color', value='#764ba2'),
+    ]
+    
+    for setting in default_settings:
+        if not Setting.query.filter_by(key=setting.key).first():
+            db.session.add(setting)
+    
+    # پلن‌های پیش‌فرض
+    default_plans = [
+        Plan(name='پایه', volume='10GB', duration='1 ماهه', price=15000),
+        Plan(name='استاندارد', volume='30GB', duration='1 ماهه', price=35000),
+        Plan(name='پیشرفته', volume='50GB', duration='1 ماهه', price=55000),
+        Plan(name='حرفه‌ای', volume='100GB', duration='1 ماهه', price=95000),
+        Plan(name='پایه ۳ ماهه', volume='10GB', duration='3 ماهه', price=35000),
+        Plan(name='استاندارد ۳ ماهه', volume='30GB', duration='3 ماهه', price=85000),
+        Plan(name='پیشرفته ۳ ماهه', volume='50GB', duration='3 ماهه', price=135000),
+        Plan(name='حرفه‌ای ۳ ماهه', volume='100GB', duration='3 ماهه', price=225000),
+    ]
+    
+    for plan in default_plans:
+        if not Plan.query.filter_by(name=plan.name).first():
+            db.session.add(plan)
+    
+    db.session.commit()
+    logger.info("✅ Database tables and default data created")
 
-# ===== توابع دیتابیس =====
+# ===== توابع =====
 def get_setting(key, default=''):
     setting = Setting.query.filter_by(key=key).first()
     return setting.value if setting else default
@@ -88,8 +121,14 @@ def update_setting(key, value):
     db.session.commit()
     return setting
 
-def get_price():
-    return int(get_setting('price', '10000'))
+def get_theme():
+    return get_setting('theme', 'default')
+
+def get_primary_color():
+    return get_setting('primary_color', '#667eea')
+
+def get_secondary_color():
+    return get_setting('secondary_color', '#764ba2')
 
 def get_user(telegram_id):
     user = User.query.filter_by(telegram_id=telegram_id).first()
@@ -99,7 +138,15 @@ def get_user(telegram_id):
         db.session.commit()
     return user
 
-def get_unused_link():
+def get_plans():
+    return Plan.query.filter_by(is_active=True).all()
+
+def get_plan(plan_id):
+    return Plan.query.get(plan_id)
+
+def get_unused_link(plan_id=None):
+    if plan_id:
+        return SubscriptionLink.query.filter_by(is_used=False, plan_id=plan_id).first()
     return SubscriptionLink.query.filter_by(is_used=False).first()
 
 def add_balance(telegram_id, amount):
@@ -116,9 +163,10 @@ def deduct_balance(telegram_id, amount):
         return True
     return False
 
-def add_transaction(telegram_id, amount, description):
+def add_transaction(telegram_id, amount, description, plan_id=None):
     trans = Transaction(
         user_id=telegram_id,
+        plan_id=plan_id,
         amount=amount,
         description=description
     )
@@ -150,26 +198,36 @@ def start(message):
             user.username = username
             db.session.commit()
             balance = user.balance
-            price = get_price()
             currency = get_setting('currency', 'تومان')
             bot_name = get_setting('bot_name', 'فروشگاه VPN')
         
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("💰 کیف پول", callback_data="wallet"),
-            InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy"),
+            InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_plans"),
             InlineKeyboardButton("📊 وضعیت", callback_data="status")
         )
         
         bot.send_message(
             user_id,
             f"👋 به {bot_name} خوش آمدید!\n"
-            f"💰 موجودی: {balance} {currency}\n"
-            f"💳 قیمت هر اشتراک: {price} {currency}",
+            f"💰 موجودی: {balance} {currency}",
             reply_markup=markup
         )
     except Exception as e:
         logger.error(f"Start error: {e}")
+
+@bot.message_handler(commands=['balance'])
+def balance(message):
+    try:
+        user_id = message.from_user.id
+        with app.app_context():
+            user = get_user(user_id)
+            balance = user.balance
+            currency = get_setting('currency', 'تومان')
+        bot.send_message(user_id, f"💰 موجودی شما: {balance} {currency}")
+    except Exception as e:
+        logger.error(f"Balance error: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "wallet")
 def handle_wallet(call):
@@ -183,48 +241,92 @@ def handle_wallet(call):
     except Exception as e:
         logger.error(f"Wallet error: {e}")
 
-@bot.callback_query_handler(func=lambda call: call.data == "buy")
-def handle_buy(call):
+@bot.callback_query_handler(func=lambda call: call.data == "buy_plans")
+def handle_buy_plans(call):
     try:
         user_id = call.from_user.id
         with app.app_context():
+            plans = get_plans()
+            currency = get_setting('currency', 'تومان')
+        
+        if not plans:
+            bot.send_message(user_id, "❌ هیچ پلنی موجود نیست!")
+            return
+        
+        markup = InlineKeyboardMarkup(row_width=2)
+        for plan in plans:
+            markup.add(
+                InlineKeyboardButton(
+                    f"{plan.name} - {plan.volume} - {plan.duration} - {plan.price} {currency}",
+                    callback_data=f"plan_{plan.id}"
+                )
+            )
+        markup.add(InlineKeyboardButton("🔙 بازگشت", callback_data="back"))
+        
+        bot.send_message(
+            user_id,
+            "🛒 لطفاً پلن مورد نظر را انتخاب کنید:",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logger.error(f"Buy plans error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("plan_"))
+def handle_plan_selection(call):
+    try:
+        user_id = call.from_user.id
+        plan_id = int(call.data.split("_")[1])
+        
+        with app.app_context():
+            plan = get_plan(plan_id)
+            if not plan:
+                bot.send_message(user_id, "❌ پلن مورد نظر یافت نشد!")
+                return
+            
             user = get_user(user_id)
             balance = user.balance
-            price = get_price()
             currency = get_setting('currency', 'تومان')
             
-            if balance < price:
+            if balance < plan.price:
                 bot.send_message(
                     user_id,
                     f"❌ موجودی کافی نیست!\n"
                     f"💰 موجودی: {balance} {currency}\n"
-                    f"💳 قیمت: {price} {currency}"
+                    f"💳 قیمت پلن: {plan.price} {currency}"
                 )
                 return
             
-            link = get_unused_link()
+            link = get_unused_link(plan_id)
             if not link:
                 bot.send_message(
                     user_id,
-                    "❌ لینکی موجود نیست!\n"
-                    "لطفاً با پشتیبانی تماس بگیرید."
+                    f"❌ لینکی برای این پلن موجود نیست!\n"
+                    f"لطفاً با پشتیبانی تماس بگیرید."
                 )
                 return
             
             if assign_link_to_user(link.id, user_id):
-                if deduct_balance(user_id, price):
-                    add_transaction(user_id, -price, "خرید اشتراک")
+                if deduct_balance(user_id, plan.price):
+                    add_transaction(
+                        user_id,
+                        -plan.price,
+                        f"خرید {plan.name} - {plan.volume} - {plan.duration}",
+                        plan_id
+                    )
                     new_balance = get_user(user_id).balance
                     
                     bot.send_message(
                         user_id,
                         f"✅ اشتراک خریداری شد!\n\n"
+                        f"📦 پلن: {plan.name}\n"
+                        f"📊 حجم: {plan.volume}\n"
+                        f"⏱ مدت: {plan.duration}\n"
                         f"🔗 لینک:\n`{link.link}`\n\n"
                         f"💰 موجودی جدید: {new_balance} {currency}",
                         parse_mode='Markdown'
                     )
     except Exception as e:
-        logger.error(f"Buy error: {e}")
+        logger.error(f"Plan selection error: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "status")
 def handle_status(call):
@@ -236,14 +338,22 @@ def handle_status(call):
         if links:
             msg = "📊 اشتراک‌های شما:\n\n"
             for i, link in enumerate(links[-5:], 1):
-                msg += f"{i}. `{link.link}`\n"
+                plan = Plan.query.get(link.plan_id)
+                plan_name = f"{plan.name} - {plan.volume}" if plan else "نامشخص"
+                msg += f"{i}. {plan_name}\n"
+                msg += f"   🔗 `{link.link}`\n"
                 if link.used_at:
-                    msg += f"   🕐 {link.used_at.strftime('%Y-%m-%d')}\n"
+                    msg += f"   🕐 {link.used_at.strftime('%Y-%m-%d %H:%M')}\n"
+                msg += "\n"
             bot.send_message(user_id, msg, parse_mode='Markdown')
         else:
             bot.send_message(user_id, "📊 شما اشتراکی ندارید.")
     except Exception as e:
         logger.error(f"Status error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "back")
+def handle_back(call):
+    start(call.message)
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
@@ -255,17 +365,24 @@ def echo_all(message):
 # ===== روت‌های پنل مدیریت =====
 @app.route('/')
 def index():
-    return render_template('login.html')
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    return render_template('login.html', theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    
     if request.method == 'POST':
         password = request.form.get('password')
         if password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
             session['logged_in'] = True
             return redirect(url_for('admin_dashboard'))
-        return render_template('login.html', error='رمز اشتباه است!')
-    return render_template('login.html')
+        return render_template('login.html', error='رمز اشتباه است!', theme=theme, primary=primary, secondary=secondary)
+    return render_template('login.html', theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/admin')
 def admin_dashboard():
@@ -277,9 +394,13 @@ def admin_dashboard():
         links_count = SubscriptionLink.query.count()
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
-        price = get_price()
+        price = 0  # برای نمایش در هدر
         currency = get_setting('currency', 'تومان')
         bot_name = get_setting('bot_name', 'فروشگاه VPN')
+        theme = get_theme()
+        primary = get_primary_color()
+        secondary = get_secondary_color()
+        plans = Plan.query.all()
     
     return render_template(
         'admin.html',
@@ -290,7 +411,11 @@ def admin_dashboard():
         total_income=total_income,
         price=price,
         currency=currency,
-        bot_name=bot_name
+        bot_name=bot_name,
+        theme=theme,
+        primary=primary,
+        secondary=secondary,
+        plans=plans
     )
 
 @app.route('/admin/users')
@@ -298,34 +423,56 @@ def admin_users():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     users = User.query.all()
-    return render_template('users.html', users=users)
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    return render_template('users.html', users=users, theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/admin/links')
 def admin_links():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     links = SubscriptionLink.query.order_by(SubscriptionLink.created_at.desc()).all()
-    return render_template('links.html', links=links)
+    plans = Plan.query.all()
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    return render_template('links.html', links=links, plans=plans, theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/admin/add_link', methods=['GET', 'POST'])
 def admin_add_link():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
+    
+    plans = Plan.query.all()
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    
     if request.method == 'POST':
         link_url = request.form.get('link_url')
+        plan_id = request.form.get('plan_id')
         if link_url:
-            new_link = SubscriptionLink(link=link_url)
+            new_link = SubscriptionLink(
+                link=link_url,
+                plan_id=int(plan_id) if plan_id else None
+            )
             db.session.add(new_link)
             db.session.commit()
             return redirect(url_for('admin_links'))
-    return render_template('add_link.html')
+    
+    return render_template('add_link.html', plans=plans, theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/admin/transactions')
 def admin_transactions():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     transactions = Transaction.query.order_by(Transaction.created_at.desc()).all()
-    return render_template('transactions.html', transactions=transactions)
+    plans = Plan.query.all()
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    return render_template('transactions.html', transactions=transactions, plans=plans, theme=theme, primary=primary, secondary=secondary)
 
 @app.route('/admin/charge', methods=['POST'])
 def admin_charge():
@@ -351,37 +498,108 @@ def admin_charge():
         return redirect(url_for('admin_users'))
     return "خطا", 400
 
-# ===== صفحه تنظیمات =====
 @app.route('/admin/settings', methods=['GET', 'POST'])
 def admin_settings():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    
     if request.method == 'POST':
-        price = request.form.get('price')
         currency = request.form.get('currency')
         bot_name = request.form.get('bot_name')
+        new_theme = request.form.get('theme')
+        new_primary = request.form.get('primary_color')
+        new_secondary = request.form.get('secondary_color')
         
         with app.app_context():
-            if price:
-                update_setting('price', price)
             if currency:
                 update_setting('currency', currency)
             if bot_name:
                 update_setting('bot_name', bot_name)
+            if new_theme:
+                update_setting('theme', new_theme)
+            if new_primary:
+                update_setting('primary_color', new_primary)
+            if new_secondary:
+                update_setting('secondary_color', new_secondary)
         
-        return redirect(url_for('admin_settings'))
+        return redirect(url_for('admin_settings', saved=1))
     
-    with app.app_context():
-        price = get_setting('price', '10000')
-        currency = get_setting('currency', 'تومان')
-        bot_name = get_setting('bot_name', 'فروشگاه VPN')
+    currency = get_setting('currency', 'تومان')
+    bot_name = get_setting('bot_name', 'فروشگاه VPN')
     
     return render_template(
         'settings.html',
-        price=price,
         currency=currency,
-        bot_name=bot_name
+        bot_name=bot_name,
+        theme=theme,
+        primary=primary,
+        secondary=secondary,
+        saved=request.args.get('saved')
+    )
+
+@app.route('/admin/plans', methods=['GET', 'POST'])
+def admin_plans():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    theme = get_theme()
+    primary = get_primary_color()
+    secondary = get_secondary_color()
+    currency = get_setting('currency', 'تومان')
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add':
+            name = request.form.get('name')
+            volume = request.form.get('volume')
+            duration = request.form.get('duration')
+            price = float(request.form.get('price', 0))
+            
+            if name and volume and duration and price > 0:
+                new_plan = Plan(name=name, volume=volume, duration=duration, price=price)
+                db.session.add(new_plan)
+                db.session.commit()
+        
+        elif action == 'edit':
+            plan_id = int(request.form.get('plan_id'))
+            plan = Plan.query.get(plan_id)
+            if plan:
+                plan.name = request.form.get('name')
+                plan.volume = request.form.get('volume')
+                plan.duration = request.form.get('duration')
+                plan.price = float(request.form.get('price', 0))
+                plan.is_active = True if request.form.get('is_active') else False
+                db.session.commit()
+        
+        elif action == 'toggle':
+            plan_id = int(request.form.get('plan_id'))
+            plan = Plan.query.get(plan_id)
+            if plan:
+                plan.is_active = not plan.is_active
+                db.session.commit()
+        
+        elif action == 'delete':
+            plan_id = int(request.form.get('plan_id'))
+            plan = Plan.query.get(plan_id)
+            if plan:
+                db.session.delete(plan)
+                db.session.commit()
+        
+        return redirect(url_for('admin_plans'))
+    
+    plans = Plan.query.all()
+    return render_template(
+        'plans.html',
+        plans=plans,
+        currency=currency,
+        theme=theme,
+        primary=primary,
+        secondary=secondary
     )
 
 @app.route('/admin/logout')

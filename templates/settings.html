@@ -21,7 +21,7 @@
             justify-content: center;
         }
         .container {
-            max-width: 600px;
+            max-width: 650px;
             width: 100%;
             margin: 20px auto;
             background: white;
@@ -70,7 +70,9 @@
             margin-right: 6px;
         }
         input[type="text"],
-        input[type="number"] {
+        input[type="number"],
+        input[type="color"],
+        select {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e8ecf1;
@@ -79,10 +81,15 @@
             transition: border-color 0.3s;
             background: #fafbfc;
         }
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: #667eea;
             background: white;
+        }
+        input[type="color"] {
+            padding: 5px;
+            height: 50px;
+            cursor: pointer;
         }
         .input-hint {
             font-size: 12px;
@@ -130,6 +137,25 @@
             border-top: 2px dashed #ecf0f1;
             margin: 25px 0;
         }
+        .theme-preview {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px dashed #ddd;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .theme-preview .preview-color {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        .theme-preview .preview-text {
+            font-size: 14px;
+            color: #2c3e50;
+        }
         .info-row {
             display: flex;
             justify-content: space-between;
@@ -160,7 +186,7 @@
             <h2>تنظیمات ربات</h2>
         </div>
         
-        {% if request.args.get('saved') %}
+        {% if saved %}
         <div class="alert alert-success">
             <span class="alert-icon">✅</span>
             تنظیمات با موفقیت ذخیره شد!
@@ -169,18 +195,10 @@
         
         <form method="POST">
             <div class="form-group">
-                <label for="price">
-                    <span class="label-icon">💰</span> قیمت هر اشتراک
-                </label>
-                <input type="number" id="price" name="price" value="{{ price }}" required min="100" step="100">
-                <div class="input-hint">حداقل ۱۰۰ تومان</div>
-            </div>
-            
-            <div class="form-group">
                 <label for="currency">
                     <span class="label-icon">💵</span> واحد پول
                 </label>
-                <input type="text" id="currency" name="currency" value="{{ currency }}" required placeholder="مثال: تومان، ریال، دلار">
+                <input type="text" id="currency" name="currency" value="{{ currency }}" required>
                 <div class="input-hint">واحد پولی که در ربات نمایش داده میشود</div>
             </div>
             
@@ -188,8 +206,48 @@
                 <label for="bot_name">
                     <span class="label-icon">🤖</span> نام ربات
                 </label>
-                <input type="text" id="bot_name" name="bot_name" value="{{ bot_name }}" required placeholder="نام ربات">
+                <input type="text" id="bot_name" name="bot_name" value="{{ bot_name }}" required>
                 <div class="input-hint">نامی که در پیام خوش‌آمدگویی نمایش داده میشود</div>
+            </div>
+            
+            <hr class="separator">
+            
+            <div class="form-group">
+                <label for="theme">
+                    <span class="label-icon">🎨</span> تم (Theme)
+                </label>
+                <select id="theme" name="theme">
+                    <option value="default" {% if theme == 'default' %}selected{% endif %}>پیش‌فرض (آبی-بنفش)</option>
+                    <option value="dark" {% if theme == 'dark' %}selected{% endif %}>تاریک</option>
+                    <option value="light" {% if theme == 'light' %}selected{% endif %}>روشن</option>
+                    <option value="green" {% if theme == 'green' %}selected{% endif %}>سبز</option>
+                    <option value="red" {% if theme == 'red' %}selected{% endif %}>قرمز</option>
+                    <option value="gold" {% if theme == 'gold' %}selected{% endif %}>طلایی</option>
+                    <option value="custom" {% if theme == 'custom' %}selected{% endif %}>سفارشی</option>
+                </select>
+                <div class="input-hint">تم رنگی پنل مدیریت</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="primary_color">
+                    <span class="label-icon">🎨</span> رنگ اصلی
+                </label>
+                <input type="color" id="primary_color" name="primary_color" value="{{ primary }}">
+                <div class="input-hint">رنگ اصلی پنل مدیریت</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="secondary_color">
+                    <span class="label-icon">🎨</span> رنگ ثانویه
+                </label>
+                <input type="color" id="secondary_color" name="secondary_color" value="{{ secondary }}">
+                <div class="input-hint">رنگ ثانویه پنل مدیریت</div>
+            </div>
+            
+            <div class="theme-preview">
+                <div class="preview-color" style="background: {{ primary }}" id="previewPrimary"></div>
+                <div class="preview-color" style="background: {{ secondary }}" id="previewSecondary"></div>
+                <div class="preview-text">پیش‌نمایش رنگ‌ها</div>
             </div>
             
             <hr class="separator">
@@ -206,5 +264,15 @@
             <button type="submit" class="btn-save">💾 ذخیره تنظیمات</button>
         </form>
     </div>
+    
+    <script>
+        // پیش‌نمایش رنگ‌ها
+        document.getElementById('primary_color').addEventListener('input', function() {
+            document.getElementById('previewPrimary').style.background = this.value;
+        });
+        document.getElementById('secondary_color').addEventListener('input', function() {
+            document.getElementById('previewSecondary').style.background = this.value;
+        });
+    </script>
 </body>
 </html>
