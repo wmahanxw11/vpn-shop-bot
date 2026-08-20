@@ -32,24 +32,23 @@ class User(db.Model):
     balance = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ===== توابع =====
+# ===== توابع کمکی با context =====
 def get_user(telegram_id):
-    with app.app_context():
-        user = User.query.filter_by(telegram_id=telegram_id).first()
-        if not user:
-            user = User(telegram_id=telegram_id)
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"✅ New user: {telegram_id}")
-        return user
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if not user:
+        user = User(telegram_id=telegram_id)
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"✅ New user created: {telegram_id}")
+    return user
 
 # ===== ربات =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 if not TOKEN:
-    logger.error("❌ TOKEN not set!")
+    logger.error("❌ TELEGRAM_BOT_TOKEN not set!")
     raise ValueError("TELEGRAM_BOT_TOKEN is required")
 
-logger.info(f"✅ Token: {TOKEN[:10]}...")
+logger.info(f"✅ Token loaded: {TOKEN[:10]}...")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== هندلر start =====
@@ -60,6 +59,7 @@ def start(message):
         username = message.from_user.username
         logger.info(f"📩 /start from: {user_id} (@{username})")
         
+        # استفاده از context برای دیتابیس
         with app.app_context():
             user = get_user(user_id)
             user.username = username
@@ -68,7 +68,7 @@ def start(message):
         
         bot.send_message(
             user_id,
-            f"✅ ربات کار می‌کند!\n"
+            f"👋 به ربات فروش VPN خوش آمدید!\n"
             f"💰 موجودی: {balance} تومان"
         )
         logger.info(f"✅ /start response sent to: {user_id}")
@@ -76,10 +76,7 @@ def start(message):
     except Exception as e:
         error_msg = f"❌ /start error: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_msg)
-        try:
-            bot.send_message(message.chat.id, "❌ خطا در پردازش! لطفاً دوباره تلاش کنید.")
-        except:
-            pass
+        bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
 # ===== هندلر balance =====
 @bot.message_handler(commands=['balance'])
@@ -98,10 +95,7 @@ def balance(message):
     except Exception as e:
         error_msg = f"❌ /balance error: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_msg)
-        try:
-            bot.send_message(message.chat.id, "❌ خطا! لطفاً دوباره تلاش کنید.")
-        except:
-            pass
+        bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
 
 # ===== هندلر پیام‌های معمولی =====
 @bot.message_handler(func=lambda message: True)
@@ -134,6 +128,7 @@ def webhook():
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         
+        # پردازش در context برنامه
         with app.app_context():
             bot.process_new_updates([update])
         
