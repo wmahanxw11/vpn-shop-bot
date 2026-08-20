@@ -2,22 +2,19 @@ import os
 import logging
 from flask import Flask, request, render_template, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from dotenv import load_dotenv
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime
-import threading
-import time
 
-# بارگذاری متغیرهای محیطی
+# ===== بارگذاری متغیرهای محیطی =====
 load_dotenv()
 
-# تنظیمات Flask
+# ===== تنظیمات Flask =====
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# تنظیمات دیتابیس
+# ===== تنظیمات دیتابیس =====
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -25,13 +22,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///bot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
-# تنظیمات لاگ
+# ===== تنظیمات لاگ =====
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# مدل‌های دیتابیس (تعریف در models.py)
+# ===== مدل‌های دیتابیس =====
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -60,7 +56,7 @@ class Transaction(db.Model):
     description = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# توابع کمکی
+# ===== توابع کمکی =====
 def get_user(telegram_id):
     user = User.query.filter_by(telegram_id=telegram_id).first()
     if not user:
@@ -109,11 +105,15 @@ def assign_link_to_user(link_id, telegram_id):
         return True
     return False
 
-# تنظیمات ربات تلگرام
+# ===== تنظیمات ربات تلگرام =====
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+if not TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN not set!")
+    raise ValueError("TELEGRAM_BOT_TOKEN is required")
+
 bot = telebot.TeleBot(TOKEN)
 
-# هندلرهای ربات
+# ===== هندلرهای ربات =====
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
@@ -203,13 +203,16 @@ def handle_status(call):
         message = "📊 لیست اشتراک‌های خریداری شده:\n\n"
         for i, link in enumerate(purchased_links[-5:], 1):  # آخرین 5 اشتراک
             message += f"{i}. `{link.link}`\n"
-            message += f"   📅 تاریخ خرید: {link.used_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+            if link.used_at:
+                message += f"   📅 تاریخ خرید: {link.used_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+            else:
+                message += f"   📅 تاریخ خرید: نامشخص\n\n"
     else:
         message = "📊 شما هنوز هیچ اشتراکی خریداری نکرده‌اید."
     
     bot.send_message(user_id, message, parse_mode='Markdown')
 
-# روت‌های وب‌پنل مدیریت
+# ===== روت‌های وب‌پنل مدیریت =====
 @app.route('/')
 def index():
     return render_template('login.html')
@@ -307,11 +310,12 @@ def admin_charge():
                     f"💰 کیف پول شما به مبلغ {amount} تومان شارژ شد.\n"
                     f"💰 موجودی جدید: {user.balance} تومان"
                 )
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to send message to user {telegram_id}: {e}")
             
             return redirect(url_for('admin_users'))
-        except:
+        except Exception as e:
+            logger.error(f"Error charging user: {e}")
             return "خطا در شارژ کیف پول", 400
     
     return "مقادیر نامعتبر", 400
@@ -321,27 +325,43 @@ def logout():
     session.pop('logged_in', None)
     return redirect(url_for('login'))
 
-# Webhook برای تلگرام
-@app.route('/webhook', methods=['POST'])
+# ===== روت Webhook (مهم!) =====
+@app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'OK', 200
-    return 'Unsupported media type', 415
+    """Webhook endpoint for Telegram"""
+    if request.method == 'GET':
+        return "✅ Webhook endpoint is working! This endpoint accepts POST requests from Telegram.", 200
+    
+    if request.method == 'POST':
+        if request.headers.get('content-type') == 'application/json':
+            try:
+                json_string = request.get_data().decode('utf-8')
+                update = telebot.types.Update.de_json(json_string)
+                bot.process_new_updates([update])
+                return 'OK', 200
+            except Exception as e:
+                logger.error(f"Error processing webhook: {e}")
+                return 'Error processing update', 500
+        return 'Unsupported media type', 415
 
-# راه‌اندازی برنامه
+# ===== راه‌اندازی برنامه =====
 if __name__ == '__main__':
+    # ایجاد جداول دیتابیس
     with app.app_context():
         db.create_all()
+        logger.info("Database tables created successfully")
     
-    # تنظیم Webhook در تلگرام
+    # تنظیم Webhook در Railway
     if os.environ.get('RAILWAY_ENV'):
         webhook_url = os.environ.get('RAILWAY_PUBLIC_URL', '') + '/webhook'
-        bot.remove_webhook()
-        bot.set_webhook(url=webhook_url)
-        logger.info(f"Webhook set to: {webhook_url}")
+        if webhook_url:
+            try:
+                bot.remove_webhook()
+                bot.set_webhook(url=webhook_url)
+                logger.info(f"Webhook set to: {webhook_url}")
+            except Exception as e:
+                logger.error(f"Failed to set webhook: {e}")
     
-    port = int(os.environ.get('PORT', 5000))
+    # اجرای برنامه
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
