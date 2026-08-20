@@ -208,7 +208,15 @@
                 <div class="title">مدیریت کاربران</div>
                 <div class="desc">مشاهده و شارژ کاربران</div>
             </a>
-            
+            <!-- در بخش menu اضافه کنید -->
+            <a href="/admin/charges" class="menu-item">
+                <span class="icon">📋</span>
+                <div class="title">درخواست‌های شارژ</div>
+                <div class="desc">مدیریت درخواست‌های کاربران</div>
+                {% if pending_charges > 0 %}
+                <span class="badge-count">{{ pending_charges }}</span>
+                {% endif %}
+            </a>
             <a href="/admin/links" class="menu-item">
                 <span class="icon">🔗</span>
                 <div class="title">مدیریت لینک‌ها</div>

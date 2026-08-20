@@ -35,6 +35,7 @@ class User(db.Model):
     username = db.Column(db.String(100))
     balance = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    charge_requests = db.relationship('ChargeRequest', backref='user', lazy=True)
 
 class SubscriptionLink(db.Model):
     __tablename__ = 'subscription_links'
@@ -97,7 +98,7 @@ with app.app_context():
         Setting(key='card_number', value='6037-9916-1234-5678'),
         Setting(key='card_holder', value='علی محمدی'),
         Setting(key='bank_name', value='بانک ملت'),
-        Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، رسید را برای ما ارسال کنید تا کیف پول شما شارژ شود.'),
+        Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'),
         Setting(key='admin_charge_notify', value='✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.'),
     ]
     
@@ -215,6 +216,9 @@ def create_charge_request(user_id, amount):
     db.session.commit()
     return charge
 
+def get_all_charge_requests():
+    return ChargeRequest.query.order_by(ChargeRequest.created_at.desc()).all()
+
 def get_pending_charges():
     return ChargeRequest.query.filter_by(status='pending').order_by(ChargeRequest.created_at.desc()).all()
 
@@ -249,6 +253,10 @@ def get_charge_message(amount):
 # ============================================
 
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+if not TOKEN:
+    logger.error("❌ TELEGRAM_BOT_TOKEN not set!")
+    raise ValueError("TELEGRAM_BOT_TOKEN is required")
+
 bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['start'])
@@ -297,7 +305,6 @@ def balance(message):
 def charge(message):
     try:
         user_id = message.from_user.id
-        username = message.from_user.username or 'بدون یوزرنیم'
         
         msg = bot.send_message(
             user_id,
@@ -342,8 +349,8 @@ def process_charge_amount(message):
                 )
                 try:
                     bot.send_message(admin_id, notify_text)
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to send admin notification: {e}")
             
             markup = InlineKeyboardMarkup()
             markup.add(
@@ -595,6 +602,7 @@ def admin_dashboard():
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
         pending_charges = ChargeRequest.query.filter_by(status='pending').count()
+        total_charges = ChargeRequest.query.count()
         plans = Plan.query.all()
     
     return render_template(
@@ -605,6 +613,7 @@ def admin_dashboard():
         unused_links=links_count - used_links,
         total_income=total_income,
         pending_charges=pending_charges,
+        total_charges=total_charges,
         plans=plans
     )
 
@@ -656,7 +665,7 @@ def admin_transactions():
 def admin_charges():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    charges = get_pending_charges()
+    charges = get_all_charge_requests()
     return render_template('charges.html', charges=charges)
 
 @app.route('/admin/charge/<int:charge_id>/approve', methods=['POST'])
@@ -664,19 +673,20 @@ def admin_charge_approve(charge_id):
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
-    charge = approve_charge(charge_id)
-    if charge:
-        add_balance(charge.user_id, charge.amount)
-        add_transaction(charge.user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
-        
-        try:
-            bot.send_message(
-                charge.user_id,
-                f"✅ درخواست شارژ شما تایید شد!\n"
-                f"💰 مبلغ {charge.amount} تومان به کیف پول شما اضافه شد."
-            )
-        except:
-            pass
+    with app.app_context():
+        charge = approve_charge(charge_id)
+        if charge:
+            add_balance(charge.user_id, charge.amount)
+            add_transaction(charge.user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
+            
+            try:
+                bot.send_message(
+                    charge.user_id,
+                    f"✅ درخواست شارژ شما تایید شد!\n"
+                    f"💰 مبلغ {charge.amount} تومان به کیف پول شما اضافه شد."
+                )
+            except:
+                pass
     
     return redirect(url_for('admin_charges'))
 
@@ -685,16 +695,17 @@ def admin_charge_reject(charge_id):
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     
-    charge = reject_charge(charge_id)
-    if charge:
-        try:
-            bot.send_message(
-                charge.user_id,
-                f"❌ درخواست شارژ شما رد شد.\n"
-                f"در صورت نیاز دوباره تلاش کنید."
-            )
-        except:
-            pass
+    with app.app_context():
+        charge = reject_charge(charge_id)
+        if charge:
+            try:
+                bot.send_message(
+                    charge.user_id,
+                    f"❌ درخواست شارژ شما رد شد.\n"
+                    f"در صورت نیاز دوباره تلاش کنید."
+                )
+            except:
+                pass
     
     return redirect(url_for('admin_charges'))
 
