@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <title>مدیریت تیکت‌ها</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 20px;
+            background: #f5f6fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+            padding: 12px;
+            text-align: right;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .status-open {
+            color: #f39c12;
+        }
+        .status-answered {
+            color: #27ae60;
+        }
+        .status-closed {
+            color: #e74c3c;
+        }
+        .btn {
+            padding: 5px 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin" class="back">← بازگشت به داشبورد</a>
+        <h2>📩 مدیریت تیکت‌های پشتیبانی</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>کاربر</th>
+                    <th>موضوع</th>
+                    <th>وضعیت</th>
+                    <th>تاریخ</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td>{{ ticket.id }}</td>
+                    <td>{{ ticket.username or ticket.user_id }}</td>
+                    <td>{{ ticket.subject }}</td>
+                    <td class="status-{{ ticket.status }}">
+                        {% if ticket.status == 'open' %}🟡 باز
+                        {% elif ticket.status == 'answered' %}🟢 پاسخ داده شده
+                        {% else %}🔴 بسته{% endif %}
+                    </td>
+                    <td>{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <a href="/admin/ticket/{{ ticket.id }}" class="btn">📝 مشاهده</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -80,6 +80,18 @@ class ChargeRequest(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid_at = db.Column(db.DateTime, nullable=True)
 
+class SupportTicket(db.Model):
+    __tablename__ = 'support_tickets'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    username = db.Column(db.String(100))
+    subject = db.Column(db.String(200))
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='open')  # open, closed, answered
+    admin_response = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # ============================================
 # ساخت جدول‌ها و داده‌های اولیه
 # ============================================
@@ -98,6 +110,8 @@ with app.app_context():
         Setting(key='bank_name', value='بانک ملت'),
         Setting(key='charge_message', value='💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'),
         Setting(key='admin_charge_notify', value='✅ کاربر {username} درخواست شارژ {amount} تومان را ثبت کرد.\n🆔 آیدی: {user_id}\n📅 تاریخ: {date}\n\nلطفاً رسید را بررسی کنید.'),
+        Setting(key='support_message', value='📩 پیام شما به پشتیبانی ارسال شد.\n🆔 شماره تیکت: {ticket_id}\n\n📌 کارشناسان ما در اسرع وقت پاسخ شما را خواهند داد.'),
+        Setting(key='admin_support_notify', value='📩 تیکت جدید از کاربر {username}\n🆔 شماره تیکت: {ticket_id}\n📝 موضوع: {subject}\n📅 تاریخ: {date}\n\nبرای پاسخ به تیکت، به پنل مدیریت مراجعه کنید.'),
     ]
     
     for setting in default_settings:
@@ -242,16 +256,13 @@ def reject_charge(charge_id):
 def get_charge_message(amount):
     template = get_setting('charge_message', '')
     
-    # اگر تنظیمات خالی بود، مقدار پیش‌فرض
     if not template or template == '':
         template = '💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود.'
     
-    # دریافت تنظیمات
     bank_name = get_setting('bank_name', 'بانک ملت')
     card_number = get_setting('card_number', '6037-9916-1234-5678')
     card_holder = get_setting('card_holder', 'علی محمدی')
     
-    # جایگزینی متغیرها
     try:
         return template.format(
             amount=amount,
@@ -262,6 +273,39 @@ def get_charge_message(amount):
     except KeyError as e:
         logger.error(f"Missing variable in charge message: {e}")
         return f"💰 لطفاً مبلغ {amount} تومان را به شماره کارت زیر واریز کنید:\n\n🏦 {bank_name}\n💳 شماره کارت: {card_number}\n👤 صاحب حساب: {card_holder}\n\n📸 پس از واریز، دکمه پرداخت انجام شد را بزنید تا کیف پول شما شارژ شود."
+
+# ===== توابع پشتیبانی =====
+def create_support_ticket(user_id, username, subject, message):
+    ticket = SupportTicket(
+        user_id=user_id,
+        username=username,
+        subject=subject,
+        message=message,
+        status='open'
+    )
+    db.session.add(ticket)
+    db.session.commit()
+    return ticket
+
+def get_user_tickets(user_id):
+    return SupportTicket.query.filter_by(user_id=user_id).order_by(SupportTicket.created_at.desc()).all()
+
+def get_all_tickets():
+    return SupportTicket.query.order_by(SupportTicket.created_at.desc()).all()
+
+def get_ticket(ticket_id):
+    return SupportTicket.query.get(ticket_id)
+
+def update_ticket_status(ticket_id, status, admin_response=None):
+    ticket = SupportTicket.query.get(ticket_id)
+    if ticket:
+        ticket.status = status
+        if admin_response:
+            ticket.admin_response = admin_response
+        ticket.updated_at = datetime.utcnow()
+        db.session.commit()
+        return ticket
+    return None
 
 # ============================================
 # ربات تلگرام
@@ -292,7 +336,7 @@ def start(message):
             InlineKeyboardButton("💰 کیف پول", callback_data="wallet"),
             InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_plans"),
             InlineKeyboardButton("📊 وضعیت", callback_data="status"),
-            InlineKeyboardButton("💰 شارژ کیف پول", callback_data="charge_wallet")
+            InlineKeyboardButton("📩 پشتیبانی", callback_data="support")
         )
         
         bot.send_message(
@@ -316,10 +360,61 @@ def balance(message):
     except Exception as e:
         logger.error(f"Balance error: {e}")
 
-@bot.message_handler(commands=['charge'])
-def charge_command(message):
+# ===== کیف پول =====
+@bot.callback_query_handler(func=lambda call: call.data == "wallet")
+def handle_wallet(call):
     try:
-        user_id = message.from_user.id
+        user_id = call.from_user.id
+        with app.app_context():
+            user = get_user(user_id)
+            balance = user.balance
+            currency = get_setting('currency', 'تومان')
+        
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("💰 شارژ حساب", callback_data="charge_wallet"),
+            InlineKeyboardButton("📊 تاریخچه", callback_data="wallet_history"),
+            InlineKeyboardButton("🔙 بازگشت", callback_data="back")
+        )
+        
+        bot.send_message(
+            user_id,
+            f"💰 کیف پول شما\n\n"
+            f"💳 موجودی: **{balance} {currency}**\n\n"
+            f"برای شارژ حساب، روی دکمه زیر کلیک کنید.",
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Wallet error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "wallet_history")
+def handle_wallet_history(call):
+    try:
+        user_id = call.from_user.id
+        with app.app_context():
+            transactions = Transaction.query.filter_by(user_id=user_id).order_by(Transaction.created_at.desc()).limit(10).all()
+            currency = get_setting('currency', 'تومان')
+        
+        if not transactions:
+            bot.send_message(user_id, "📊 هیچ تراکنشی یافت نشد.")
+            return
+        
+        msg = "📊 آخرین تراکنش‌های شما:\n\n"
+        for t in transactions:
+            sign = "+" if t.amount > 0 else ""
+            msg += f"{t.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+            msg += f"{sign}{t.amount} {currency} - {t.description}\n\n"
+        
+        bot.send_message(user_id, msg)
+    except Exception as e:
+        logger.error(f"Wallet history error: {e}")
+
+# ===== شارژ کیف پول =====
+@bot.callback_query_handler(func=lambda call: call.data == "charge_wallet")
+def handle_charge_wallet(call):
+    try:
+        user_id = call.from_user.id
         msg = bot.send_message(
             user_id,
             "💰 مبلغ مورد نظر برای شارژ کیف پول را به تومان وارد کنید:\n"
@@ -327,7 +422,7 @@ def charge_command(message):
         )
         bot.register_next_step_handler(msg, process_charge_amount)
     except Exception as e:
-        logger.error(f"Charge error: {e}")
+        logger.error(f"Charge wallet error: {e}")
 
 def process_charge_amount(message):
     try:
@@ -343,23 +438,17 @@ def process_charge_amount(message):
             return
         
         with app.app_context():
-            # ایجاد درخواست شارژ
             charge = create_charge_request(user_id, amount)
-            
-            # دریافت متن پیام شارژ
             charge_text = get_charge_message(amount)
             
-            # ارسال پیام شارژ به کاربر
             bot.send_message(user_id, charge_text, parse_mode='Markdown')
             
-            # ارسال شماره درخواست
             bot.send_message(
                 user_id,
                 f"🆔 شماره درخواست: {charge.id}\n"
                 f"📌 پس از واریز، دکمه زیر را بزنید."
             )
             
-            # اعلان به ادمین
             admin_id = os.environ.get('ADMIN_ID')
             if admin_id:
                 notify_text = get_setting('admin_charge_notify', '').format(
@@ -373,7 +462,6 @@ def process_charge_amount(message):
                 except Exception as e:
                     logger.error(f"Failed to send admin notification: {e}")
             
-            # دکمه‌های تایید/انصراف
             markup = InlineKeyboardMarkup()
             markup.add(
                 InlineKeyboardButton("✅ پرداخت انجام شد", callback_data=f"confirm_charge_{charge.id}"),
@@ -382,7 +470,7 @@ def process_charge_amount(message):
             bot.send_message(
                 user_id,
                 "✅ درخواست شارژ ثبت شد!\n\n"
-                "🔄 پس از واریز، دکمه زیر را بزنید تا به ادمین اطلاع داده شود.",
+                "🔄 پس از واریز، دکمه زیر را بزنید.",
                 reply_markup=markup
             )
             
@@ -401,11 +489,14 @@ def handle_confirm_charge(call):
             if charge:
                 add_balance(user_id, charge.amount)
                 add_transaction(user_id, charge.amount, f"شارژ از طریق درخواست #{charge.id}")
+                new_balance = get_user(user_id).balance
+                currency = get_setting('currency', 'تومان')
                 
                 bot.send_message(
                     user_id,
-                    f"✅ کیف پول شما به مبلغ {charge.amount} تومان شارژ شد!\n"
-                    f"💰 موجودی جدید: {get_user(user_id).balance} تومان"
+                    f"✅ کیف پول شما به مبلغ **{charge.amount} {currency}** شارژ شد!\n"
+                    f"💰 موجودی جدید: **{new_balance} {currency}**",
+                    parse_mode='Markdown'
                 )
                 
                 admin_id = os.environ.get('ADMIN_ID')
@@ -444,22 +535,7 @@ def handle_cancel_charge(call):
     except Exception as e:
         logger.error(f"Cancel charge error: {e}")
 
-@bot.callback_query_handler(func=lambda call: call.data == "wallet")
-def handle_wallet(call):
-    try:
-        user_id = call.from_user.id
-        with app.app_context():
-            user = get_user(user_id)
-            balance = user.balance
-            currency = get_setting('currency', 'تومان')
-        bot.send_message(user_id, f"💰 موجودی شما: {balance} {currency}")
-    except Exception as e:
-        logger.error(f"Wallet error: {e}")
-
-@bot.callback_query_handler(func=lambda call: call.data == "charge_wallet")
-def handle_charge_wallet(call):
-    charge_command(call.message)
-
+# ===== خرید اشتراک =====
 @bot.callback_query_handler(func=lambda call: call.data == "buy_plans")
 def handle_buy_plans(call):
     try:
@@ -511,7 +587,8 @@ def handle_plan_selection(call):
                     user_id,
                     f"❌ موجودی کافی نیست!\n"
                     f"💰 موجودی: {balance} {currency}\n"
-                    f"💳 قیمت پلن: {plan.price} {currency}"
+                    f"💳 قیمت پلن: {plan.price} {currency}\n\n"
+                    f"📌 ابتدا کیف پول خود را شارژ کنید."
                 )
                 return
             
@@ -547,28 +624,152 @@ def handle_plan_selection(call):
     except Exception as e:
         logger.error(f"Plan selection error: {e}")
 
+# ===== وضعیت اشتراک =====
 @bot.callback_query_handler(func=lambda call: call.data == "status")
 def handle_status(call):
     try:
         user_id = call.from_user.id
         with app.app_context():
             links = SubscriptionLink.query.filter_by(used_by=user_id).all()
+            currency = get_setting('currency', 'تومان')
+            user = get_user(user_id)
+        
+        msg = f"📊 **وضعیت حساب شما**\n\n"
+        msg += f"💰 موجودی: **{user.balance} {currency}**\n"
+        msg += f"📦 تعداد اشتراک‌ها: **{len(links)}**\n\n"
         
         if links:
-            msg = "📊 اشتراک‌های شما:\n\n"
+            msg += "📋 **اشتراک‌های شما:**\n\n"
             for i, link in enumerate(links[-5:], 1):
                 plan = Plan.query.get(link.plan_id)
                 plan_name = f"{plan.name} - {plan.volume}" if plan else "نامشخص"
-                msg += f"{i}. {plan_name}\n"
+                msg += f"{i}. **{plan_name}**\n"
                 msg += f"   🔗 `{link.link}`\n"
                 if link.used_at:
-                    msg += f"   🕐 {link.used_at.strftime('%Y-%m-%d %H:%M')}\n"
+                    msg += f"   🕐 خرید: {link.used_at.strftime('%Y-%m-%d %H:%M')}\n"
                 msg += "\n"
-            bot.send_message(user_id, msg, parse_mode='Markdown')
         else:
-            bot.send_message(user_id, "📊 شما اشتراکی ندارید.")
+            msg += "📭 هنوز اشتراکی خریداری نکرده‌اید.\n"
+        
+        bot.send_message(user_id, msg, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Status error: {e}")
+
+# ===== پشتیبانی =====
+@bot.callback_query_handler(func=lambda call: call.data == "support")
+def handle_support(call):
+    try:
+        user_id = call.from_user.id
+        
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("📝 تیکت جدید", callback_data="new_ticket"),
+            InlineKeyboardButton("📋 تیکت‌های من", callback_data="my_tickets"),
+            InlineKeyboardButton("🔙 بازگشت", callback_data="back")
+        )
+        
+        bot.send_message(
+            user_id,
+            "📩 **پشتیبانی**\n\n"
+            "برای ارتباط با پشتیبانی، یکی از گزینه‌های زیر را انتخاب کنید:",
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Support error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "new_ticket")
+def handle_new_ticket(call):
+    try:
+        user_id = call.from_user.id
+        
+        msg = bot.send_message(
+            user_id,
+            "📝 **تیکت جدید**\n\n"
+            "لطفاً موضوع درخواست خود را وارد کنید:"
+        )
+        bot.register_next_step_handler(msg, process_ticket_subject)
+    except Exception as e:
+        logger.error(f"New ticket error: {e}")
+
+def process_ticket_subject(message):
+    try:
+        user_id = message.from_user.id
+        subject = message.text.strip()
+        
+        msg = bot.send_message(
+            user_id,
+            f"📝 **موضوع:** {subject}\n\n"
+            "لطفاً متن درخواست خود را وارد کنید:"
+        )
+        bot.register_next_step_handler(msg, process_ticket_message, subject)
+    except Exception as e:
+        logger.error(f"Ticket subject error: {e}")
+
+def process_ticket_message(message, subject):
+    try:
+        user_id = message.from_user.id
+        username = message.from_user.username or 'بدون یوزرنیم'
+        ticket_message = message.text.strip()
+        
+        with app.app_context():
+            ticket = create_support_ticket(user_id, username, subject, ticket_message)
+            
+            # ارسال پیام به کاربر
+            support_msg = get_setting('support_message', '').format(
+                ticket_id=ticket.id
+            )
+            bot.send_message(user_id, support_msg)
+            
+            # اعلان به ادمین
+            admin_id = os.environ.get('ADMIN_ID')
+            if admin_id:
+                admin_notify = get_setting('admin_support_notify', '').format(
+                    username=username,
+                    ticket_id=ticket.id,
+                    subject=subject,
+                    date=datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                )
+                try:
+                    bot.send_message(admin_id, admin_notify)
+                except:
+                    pass
+            
+            # دکمه بازگشت
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="support"))
+            bot.send_message(
+                user_id,
+                "✅ تیکت شما با موفقیت ثبت شد.",
+                reply_markup=markup
+            )
+            
+    except Exception as e:
+        logger.error(f"Ticket message error: {e}")
+        bot.send_message(message.chat.id, "❌ خطایی رخ داد! لطفاً دوباره تلاش کنید.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "my_tickets")
+def handle_my_tickets(call):
+    try:
+        user_id = call.from_user.id
+        
+        with app.app_context():
+            tickets = get_user_tickets(user_id)
+        
+        if not tickets:
+            bot.send_message(user_id, "📭 شما هیچ تیکتی ثبت نکرده‌اید.")
+            return
+        
+        msg = "📋 **لیست تیکت‌های شما:**\n\n"
+        for t in tickets[:10]:
+            status_emoji = "🟡" if t.status == "open" else "🟢" if t.status == "answered" else "🔴"
+            msg += f"{status_emoji} #{t.id} - {t.subject}\n"
+            msg += f"   📅 {t.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+            msg += f"   📌 وضعیت: {t.status}\n\n"
+        
+        bot.send_message(user_id, msg, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"My tickets error: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "back")
 def handle_back(call):
@@ -624,7 +825,7 @@ def admin_dashboard():
         used_links = SubscriptionLink.query.filter_by(is_used=True).count()
         total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
         pending_charges = ChargeRequest.query.filter_by(status='pending').count()
-        total_charges = ChargeRequest.query.count()
+        pending_tickets = SupportTicket.query.filter_by(status='open').count()
         plans = Plan.query.all()
     
     return render_template(
@@ -635,7 +836,7 @@ def admin_dashboard():
         unused_links=links_count - used_links,
         total_income=total_income,
         pending_charges=pending_charges,
-        total_charges=total_charges,
+        pending_tickets=pending_tickets,
         plans=plans
     )
 
@@ -730,6 +931,45 @@ def admin_charge_reject(charge_id):
                 pass
     
     return redirect(url_for('admin_charges'))
+
+# ===== مدیریت تیکت‌های پشتیبانی =====
+@app.route('/admin/tickets')
+def admin_tickets():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    tickets = get_all_tickets()
+    return render_template('tickets.html', tickets=tickets)
+
+@app.route('/admin/ticket/<int:ticket_id>', methods=['GET', 'POST'])
+def admin_ticket_detail(ticket_id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
+    ticket = get_ticket(ticket_id)
+    if not ticket:
+        return redirect(url_for('admin_tickets'))
+    
+    if request.method == 'POST':
+        response = request.form.get('response')
+        status = request.form.get('status')
+        
+        if response:
+            update_ticket_status(ticket_id, status, response)
+            
+            try:
+                bot.send_message(
+                    ticket.user_id,
+                    f"📩 پاسخ به تیکت #{ticket.id}\n\n"
+                    f"📝 **موضوع:** {ticket.subject}\n"
+                    f"📌 **وضعیت:** {status}\n\n"
+                    f"📄 **پاسخ:**\n{response}"
+                )
+            except:
+                pass
+            
+            return redirect(url_for('admin_tickets'))
+    
+    return render_template('ticket_detail.html', ticket=ticket)
 
 # ============================================
 # مدیریت موجودی کاربران
@@ -844,6 +1084,8 @@ def admin_settings():
         bank_name = request.form.get('bank_name')
         charge_message = request.form.get('charge_message')
         admin_charge_notify = request.form.get('admin_charge_notify')
+        support_message = request.form.get('support_message')
+        admin_support_notify = request.form.get('admin_support_notify')
         
         with app.app_context():
             if currency:
@@ -866,6 +1108,10 @@ def admin_settings():
                 update_setting('charge_message', charge_message)
             if admin_charge_notify:
                 update_setting('admin_charge_notify', admin_charge_notify)
+            if support_message:
+                update_setting('support_message', support_message)
+            if admin_support_notify:
+                update_setting('admin_support_notify', admin_support_notify)
         
         return redirect(url_for('admin_settings', saved=1))
     
@@ -874,10 +1120,13 @@ def admin_settings():
     bank_name = get_setting('bank_name', 'بانک ملت')
     charge_message = get_setting('charge_message', '')
     admin_charge_notify = get_setting('admin_charge_notify', '')
+    support_message = get_setting('support_message', '')
+    admin_support_notify = get_setting('admin_support_notify', '')
     
     users_count = User.query.count()
     links_count = SubscriptionLink.query.count()
     pending_charges = ChargeRequest.query.filter_by(status='pending').count()
+    pending_tickets = SupportTicket.query.filter_by(status='open').count()
     total_income = db.session.query(db.func.sum(Transaction.amount)).filter(Transaction.amount > 0).scalar() or 0
     
     return render_template(
@@ -888,9 +1137,12 @@ def admin_settings():
         bank_name=bank_name,
         charge_message=charge_message,
         admin_charge_notify=admin_charge_notify,
+        support_message=support_message,
+        admin_support_notify=admin_support_notify,
         users_count=users_count,
         links_count=links_count,
         pending_charges=pending_charges,
+        pending_tickets=pending_tickets,
         total_income=total_income
     )
 
